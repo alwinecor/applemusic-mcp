@@ -17,6 +17,7 @@ Security Notes:
 
 import re
 import subprocess
+from urllib.parse import urlparse
 import sys
 import shutil
 import time
@@ -218,6 +219,29 @@ def _track_filter_clause(
             safe_artist = _escape_for_applescript(artist)
             return f'whose {name_clause} and artist contains "{safe_artist}"'
         return f"whose {name_clause}"
+    return None
+
+
+def _exact_track_filter_clause(
+    track_name: str = "", artist: Optional[str] = None, track_id: Optional[str] = None
+) -> Optional[str]:
+    """Like :func:`_track_filter_clause` but matches the title EXACTLY.
+
+    Used to disambiguate in one Apple Event. Iterating the substring matches and
+    reading `name of t` per item is one round-trip each: on this library
+    `name contains "a"` returns 8478 tracks and the loop took ~10s, so a broad
+    term hit the 30s osascript timeout and reported a timeout instead of the
+    candidate list -- failing exactly in the high-ambiguity case the guard is
+    for. AppleScript's `is` on text ignores case unless `considering case`.
+    """
+    if track_id:
+        return f'whose persistent ID is "{_escape_for_applescript(track_id)}"'
+    if track_name:
+        safe = _escape_for_applescript(track_name)
+        if artist:
+            safe_artist = _escape_for_applescript(artist)
+            return f'whose name is "{safe}" and artist contains "{safe_artist}"'
+        return f'whose name is "{safe}"'
     return None
 
 
@@ -1162,9 +1186,12 @@ def move_to_root(item_name: str) -> tuple[bool, str]:
         Tuple of (success, message or error)
     """
     safe_item = _escape_for_applescript(item_name)
+    # This is a delete-and-recreate, not a move: the original playlist is
+    # deleted and the persistent ID changes. Resolving it by partial match
+    # meant move_to_root("Jack") could destroy "Jack & Norah".
     script = f"""
     tell application "Music"
-{_find_playlist_applescript(safe_item)}
+{_unambiguous_playlist_applescript(safe_item)}
         try
             set pParent to parent of targetPlaylist
         on error
@@ -1184,6 +1211,9 @@ def move_to_root(item_name: str) -> tuple[bool, str]:
     end tell
     """
     success, output = run_applescript(script)
+    ambiguous = _ambiguous_message(output, item_name, "move")
+    if ambiguous:
+        return False, ambiguous
     if output.startswith("ERROR:"):
         return False, output[6:]
     return success, output
@@ -1246,6 +1276,69 @@ def delete_folder(folder_path: str) -> tuple[bool, str]:
     return success, output
 
 
+def _unambiguous_playlist_applescript(safe_name: str) -> str:
+    """Resolve a playlist for a DESTRUCTIVE operation, refusing ambiguity.
+
+    `_find_playlist_applescript` falls back to `name contains`, which is fine
+    for reads but means `delete "Work"` can destroy "Workout". An exact
+    (case-insensitive) name wins; otherwise exactly one partial match is
+    required. The API rail already behaves this way and lists the candidates
+    when it refuses -- this is that contract on the native rail.
+    """
+    return f"""
+        -- Exact beats partial, and that has to hold ACROSS kinds: folders are
+        -- not returned by `every user playlist`, so checking them only after
+        -- partial user matches would let `delete "Rock"` destroy the playlist
+        -- "Rock Classics" while a folder named exactly "Rock" sat there.
+        set exactMatches to (every user playlist whose name is "{safe_name}")
+        set folderMatches to (every folder playlist whose name is "{safe_name}")
+        set exactTotal to (count of exactMatches) + (count of folderMatches)
+        if exactTotal > 1 then
+            return "ERROR:AMBIGUOUS_EXACT:" & exactTotal & ":" & "{safe_name}"
+        else if (count of exactMatches) is 1 then
+            set targetPlaylist to item 1 of exactMatches
+        else if (count of folderMatches) is 1 then
+            set targetPlaylist to item 1 of folderMatches
+        else
+            set partialMatches to (every user playlist whose name contains "{safe_name}")
+            if (count of partialMatches) is 0 then
+                return "ERROR:Playlist not found"
+            else if (count of partialMatches) is 1 then
+                set targetPlaylist to item 1 of partialMatches
+            else
+                set candidates to ""
+                set shown to (count of partialMatches)
+                if shown > 10 then set shown to 10
+                repeat with i from 1 to shown
+                    set candidates to candidates & (name of (item i of partialMatches) as text) & "; "
+                end repeat
+                return "ERROR:AMBIGUOUS_PL:" & (count of partialMatches) & ":" & candidates
+            end if
+        end if"""
+
+
+def _ambiguous_message(output: str, name: str, verb: str) -> Optional[str]:
+    """Turn the script's AMBIGUOUS marker into an actionable refusal."""
+    if output.startswith("ERROR:AMBIGUOUS_EXACT:"):
+        _, _, rest = output.partition("ERROR:AMBIGUOUS_EXACT:")
+        count, _, _ = rest.partition(":")
+        # Music.app allows duplicate names, so "pass the exact name" is advice
+        # the user has already followed and cannot act on. Say so plainly
+        # rather than sending them in a circle.
+        return (
+            f"{count} playlists are named exactly {name!r} — refusing to {verb} any of them, "
+            "because there is no way to tell them apart by name. Rename one in Music.app first."
+        )
+    if not output.startswith("ERROR:AMBIGUOUS_PL:"):
+        return None
+    _, _, rest = output.partition("ERROR:AMBIGUOUS_PL:")
+    count, _, candidates = rest.partition(":")
+    return (
+        f"{count} playlists match {name!r} — refusing to {verb} any of them. "
+        f"Matches: {candidates.strip().rstrip(';')}. Pass the exact name."
+    )
+
+
 def delete_playlist(playlist_name: str) -> tuple[bool, str]:
     """Delete a playlist by name.
 
@@ -1258,13 +1351,16 @@ def delete_playlist(playlist_name: str) -> tuple[bool, str]:
     safe_name = _escape_for_applescript(playlist_name)
     script = f"""
     tell application "Music"
-{_find_playlist_applescript(safe_name)}
+{_unambiguous_playlist_applescript(safe_name)}
         set playlistName to name of targetPlaylist
         delete targetPlaylist
         return "Deleted playlist: " & playlistName
     end tell
     """
     success, output = run_applescript(script)
+    ambiguous = _ambiguous_message(output, playlist_name, "delete")
+    if ambiguous:
+        return False, ambiguous
     if output.startswith("ERROR:"):
         return False, output[6:]
     return success, output
@@ -1284,13 +1380,16 @@ def rename_playlist(playlist_name: str, new_name: str) -> tuple[bool, str]:
     safe_new = _escape_for_applescript(new_name)
     script = f"""
     tell application "Music"
-{_find_playlist_applescript(safe_old)}
+{_unambiguous_playlist_applescript(safe_old)}
         set oldName to name of targetPlaylist
         set name of targetPlaylist to "{safe_new}"
         return "Renamed: " & oldName & " → {safe_new}"
     end tell
     """
     success, output = run_applescript(script)
+    ambiguous = _ambiguous_message(output, playlist_name, "rename")
+    if ambiguous:
+        return False, ambiguous
     if output.startswith("ERROR:"):
         return False, output[6:]
     return success, output
@@ -1438,14 +1537,36 @@ def remove_track_from_playlist(
     if track_filter is None:
         return False, "Must provide track_name or track_id"
 
+    # Same hazard as remove_from_library, doubled: the playlist was resolved by
+    # partial match too, so an ambiguous call could delete the wrong track from
+    # the wrong playlist. Resolve the playlist exactly, then enumerate.
+    exact_filter = _exact_track_filter_clause(track_name, artist, track_id)
     script = f"""
     tell application "Music"
-{_find_playlist_applescript(safe_playlist)}
-        try
-            set targetTrack to (first track of targetPlaylist {track_filter})
-        on error
-            return "ERROR:Track not found in playlist"
-        end try
+{_unambiguous_playlist_applescript(safe_playlist)}
+        set matches to (every track of targetPlaylist {track_filter})
+        set matchCount to (count of matches)
+        if matchCount is 0 then return "ERROR:Track not found in playlist"
+
+        set targetTrack to missing value
+        if matchCount is 1 then
+            set targetTrack to item 1 of matches
+        else
+            set exacts to (every track of targetPlaylist {exact_filter})
+            if (count of exacts) is 1 then set targetTrack to item 1 of exacts
+        end if
+
+        if targetTrack is missing value then
+            set candidates to ""
+            set shown to matchCount
+            if shown > 10 then set shown to 10
+            repeat with i from 1 to shown
+                set t to item i of matches
+                set candidates to candidates & (name of t as text) & " - " & (artist of t as text) & "; "
+            end repeat
+            return "ERROR:AMBIGUOUS:" & matchCount & ":" & candidates
+        end if
+
         set trackName to name of targetTrack
         set trackArtist to artist of targetTrack
         delete targetTrack
@@ -1453,6 +1574,16 @@ def remove_track_from_playlist(
     end tell
     """
     success, output = run_applescript(script)
+    playlist_ambiguous = _ambiguous_message(output, playlist_name, "remove tracks from")
+    if playlist_ambiguous:
+        return False, playlist_ambiguous
+    if output.startswith("ERROR:AMBIGUOUS:"):
+        _, _, rest = output.partition("ERROR:AMBIGUOUS:")
+        count, _, candidates = rest.partition(":")
+        return False, (
+            f"{count} tracks in {playlist_name!r} match {track_name!r} — refusing to remove any. "
+            f"Matches: {candidates.strip().rstrip(';')}. Pass the exact title or use track_id."
+        )
     if output.startswith("ERROR:"):
         return False, output[6:]
     return success, output
@@ -1475,13 +1606,41 @@ def remove_from_library(
     if track_filter is None:
         return False, "Must provide track_name or track_id"
 
+    # Deleting from the library is irreversible and the filter is a SUBSTRING
+    # match, so `first track whose name contains "Love"` deletes whichever track
+    # happens to sort first. Enumerate, and act only when the target is
+    # unambiguous: an exact (case-insensitive) title match wins, otherwise a
+    # single substring match is required. The API rail already refuses ambiguous
+    # deletes and lists the candidates; this gives the native rail the same
+    # contract.
+    exact_filter = _exact_track_filter_clause(track_name, artist, track_id)
     script = f"""
     tell application "Music"
-        try
-            set targetTrack to (first track of library playlist 1 {track_filter})
-        on error
-            return "ERROR:Track not found in library"
-        end try
+        set matches to (every track of library playlist 1 {track_filter})
+        set matchCount to (count of matches)
+        if matchCount is 0 then return "ERROR:Track not found in library"
+
+        set targetTrack to missing value
+        if matchCount is 1 then
+            set targetTrack to item 1 of matches
+        else
+            -- An exact title match disambiguates; AppleScript's `is` on text
+            -- ignores case unless `considering case` is requested.
+            set exacts to (every track of library playlist 1 {exact_filter})
+            if (count of exacts) is 1 then set targetTrack to item 1 of exacts
+        end if
+
+        if targetTrack is missing value then
+            set candidates to ""
+            set shown to matchCount
+            if shown > 10 then set shown to 10
+            repeat with i from 1 to shown
+                set t to item i of matches
+                set candidates to candidates & (name of t as text) & " - " & (artist of t as text) & "; "
+            end repeat
+            return "ERROR:AMBIGUOUS:" & matchCount & ":" & candidates
+        end if
+
         set trackName to name of targetTrack
         set trackArtist to artist of targetTrack
         delete targetTrack
@@ -1489,6 +1648,14 @@ def remove_from_library(
     end tell
     """
     success, output = run_applescript(script)
+    if output.startswith("ERROR:AMBIGUOUS:"):
+        _, _, rest = output.partition("ERROR:AMBIGUOUS:")
+        count, _, candidates = rest.partition(":")
+        return False, (
+            f"{count} library tracks match {track_name!r} — refusing to delete any of them. "
+            f"Matches: {candidates.strip().rstrip(';')}. "
+            "Pass the exact title, add artist=, or use track_id for an exact match."
+        )
     if output.startswith("ERROR:"):
         return False, output[6:]
     return success, output
@@ -1704,6 +1871,9 @@ def play_track(track_name: str, artist: Optional[str] = None) -> tuple[bool, str
     return success, output
 
 
+_HOSTNAME_RE = re.compile(r"^[a-z0-9.-]+$")
+
+
 def open_catalog_song(song_url: str) -> tuple[bool, str]:
     """Open a catalog song's page in the Music app (does not start playback).
 
@@ -1723,19 +1893,46 @@ def open_catalog_song(song_url: str) -> tuple[bool, str]:
     if not song_url or not isinstance(song_url, str):
         return False, "Invalid URL: empty or not a string"
 
-    # Normalize the URL - handle both https:// and music:// schemes
-    if song_url.startswith("music://"):
-        music_url = song_url
-        https_url = song_url.replace("music://", "https://")
-    elif song_url.startswith("https://music.apple.com"):
-        https_url = song_url
-        music_url = song_url.replace("https://", "music://")
-    elif song_url.startswith("https://"):
-        # Non-Apple Music https URL - reject it
-        return False, f"Not an Apple Music URL: {song_url}"
-    else:
-        # Assume it might be a bare URL without scheme
+    # Validate by HOST, never by prefix. A `startswith` check accepts
+    # "https://music.apple.com.attacker.tld/..." (suffix host) and
+    # "https://music.apple.com@attacker.tld/..." (the real host is the part
+    # after the @), and this value is handed to `open`, which will launch a
+    # browser at whatever it names. Track and playlist titles are
+    # attacker-influenceable text that reaches the model, so a URL-open
+    # primitive here is an outbound channel, not just a bad link.
+    # browser.py and safari_player.py already gate on hostname; this is the
+    # same check applied to the native rail.
+    scheme, _, rest = song_url.partition("://")
+    scheme = scheme.lower()
+    if not rest or scheme not in ("music", "https"):
         return False, f"Invalid URL format: {song_url}"
+
+    # A backslash is not an authority delimiter to urlparse but IS normalised to
+    # "/" by browsers and the WHATWG URL parser, so "evil.tld\.music.apple.com"
+    # parses with a host that passes a suffix test here and then resolves to
+    # evil.tld once `open` hands it to a browser. Reject it before parsing.
+    if "\\" in rest:
+        return False, f"Not an Apple Music URL: {song_url}"
+
+    try:
+        host = (urlparse(f"https://{rest}").hostname or "").lower()
+    except ValueError:
+        # e.g. "https://[evil" -> "Invalid IPv6 URL". This function's contract
+        # is (ok, message); it must not raise out of a rejection path.
+        return False, f"Invalid URL format: {song_url}"
+
+    # Hostnames are letters, digits, dots and hyphens. Anything else means the
+    # authority is not what it appears to be, so refuse rather than reason about
+    # which parser wins.
+    if not host or not _HOSTNAME_RE.match(host):
+        return False, f"Not an Apple Music URL: {song_url}"
+    if host != "music.apple.com" and not host.endswith(".music.apple.com"):
+        return False, f"Not an Apple Music URL: {song_url}"
+
+    # Rebuild both schemes from the validated remainder rather than string
+    # replacement, so the host that was checked is the host that is opened.
+    music_url = f"music://{rest}"
+    https_url = f"https://{rest}"
 
     # Try music:// scheme first - opens directly in Music app
     try:

@@ -743,7 +743,9 @@ def format_output(
         # CSV response inline
         output = io.StringIO()
         if items and "duration" in items[0]:
-            csv_fields = ["name", "duration", "artist", "album", "year", "genre", "id"]
+            # `explicit` rides along so a clean_only export cannot read as
+            # vetted while containing tracks that were never checked.
+            csv_fields = ["name", "duration", "artist", "album", "year", "genre", "explicit", "id"]
             if full:
                 csv_fields += [
                     "track_number",
@@ -797,7 +799,19 @@ def format_output(
             file_path = cache_dir / f"{file_prefix}_{timestamp}.csv"
             # Determine fields based on full flag
             if items and "duration" in items[0]:
-                csv_fields = ["name", "duration", "artist", "album", "year", "genre", "id"]
+                # `explicit` must ride along here too: the verification note is
+                # suppressed for non-text formats on the grounds that each row
+                # carries the rating, and an export file has no note at all.
+                csv_fields = [
+                    "name",
+                    "duration",
+                    "artist",
+                    "album",
+                    "year",
+                    "genre",
+                    "explicit",
+                    "id",
+                ]
                 if full:
                     csv_fields += [
                         "track_number",
@@ -839,6 +853,7 @@ def format_output(
                                     "id",
                                     "track_count",
                                     "release_date",
+                                    "explicit",
                                 }
                             }
                             for item in items
@@ -911,12 +926,20 @@ def list_exports() -> str:
 @mcp.resource("exports://{filename}")
 def read_export(filename: str) -> str:
     """Read an exported file from the cache directory."""
-    cache_dir = get_cache_dir()
-    file_path = cache_dir / filename
-    if not file_path.exists():
+    # Containment must be checked on the RESOLVED path and before touching the
+    # filesystem. `is_relative_to` is purely lexical: cache_dir/"../../.ssh/id_rsa"
+    # satisfies it while resolving outside the cache entirely. What kept this
+    # from being exploitable was the MCP SDK binding {filename} to a single path
+    # segment -- a control this server does not own, so it is not one to rely on.
+    cache_dir = get_cache_dir().resolve()
+    candidate = Path(filename)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        return "Invalid path"
+    file_path = (cache_dir / candidate).resolve()
+    if cache_dir not in file_path.parents:
+        return "Invalid path"
+    if not file_path.is_file():
         return f"File not found: {filename}"
-    if not file_path.is_relative_to(cache_dir):
-        return "Invalid path"  # pragma: no cover  # unreachable: file_path is always cache_dir/filename, never outside cache_dir
     return file_path.read_text(encoding="utf-8")
 
 
@@ -3877,9 +3900,20 @@ def _playlist_create_in_folder(name: str, folder: str, description: str = "") ->
     # Move it into the folder
     move_result = _playlist_move(name, folder)
     if "Error" in move_result:
-        # Rollback: delete the orphaned playlist
-        asc.delete_playlist(name)
-        return f"Error: Created playlist '{name}' but failed to move to folder '{folder}': {move_result}. Playlist was removed."
+        # Rollback: delete the orphaned playlist. The delete can legitimately
+        # refuse -- Music.app allows duplicate names, and if one already existed
+        # the rollback now sees two and will not guess which to remove. Report
+        # what actually happened rather than asserting a cleanup that did not
+        # occur, so the user knows an orphan is sitting there.
+        removed, removal_detail = asc.delete_playlist(name)
+        if removed:
+            outcome = "Playlist was removed."
+        else:
+            outcome = f"The playlist was left in place ({removal_detail}) — remove it manually."
+        return (
+            f"Error: Created playlist '{name}' but failed to move to folder "
+            f"'{folder}': {move_result}. {outcome}"
+        )
 
     return f"Created playlist '{name}' in folder '{folder}'"
 
