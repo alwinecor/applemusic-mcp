@@ -36,6 +36,7 @@ import os
 import time
 
 import pytest
+import requests
 
 from applemusic_mcp import amp_api
 from applemusic_mcp import auth
@@ -222,6 +223,44 @@ class TestLiveApiGate:
                 amp_api.delete_folder(fid)
             if added_to_library:
                 _remove_song_from_library(song["id"], song["name"])
+
+    def test_playlist_reorder(self):
+        """Reorder a disposable playlist using only songs already in the library."""
+        response = requests.get(
+            f"{amp_api.AMP}/me/library/songs",
+            headers=amp_api._headers(),
+            params={"limit": 3},
+            timeout=amp_api.TIMEOUT,
+        )
+        response.raise_for_status()
+        songs = response.json()["data"]
+        if len(songs) < 2:
+            pytest.skip("reorder gate needs at least two existing library songs")
+        ok, pid = amp_api.create_playlist(_unique("REORDER"))
+        assert ok, pid
+        try:
+            ok, message = amp_api.add_tracks(pid, [(s["id"], s["type"]) for s in songs])
+            assert ok, message
+            initial = []
+            for _ in range(12):
+                initial = amp_api.get_playlist_order(pid)
+                if len(initial) == len(songs):
+                    break
+                time.sleep(1)
+            assert len(initial) == len(songs), "seed tracks did not appear in the test playlist"
+            result = server.playlist(
+                action="reorder",
+                playlist=pid,
+                order=",".join(str(i) for i in range(len(initial), 0, -1)),
+            )
+            assert "order verified" in result, result
+            actual = amp_api.get_playlist_order(pid)
+            assert [(t["id"], t["type"]) for t in actual] == [
+                (t["id"], t["type"]) for t in reversed(initial)
+            ]
+        finally:
+            ok, message = amp_api.delete_playlist(pid)
+            assert ok, f"could not clean up reorder test playlist {pid}: {message}"
 
     def test_rating_roundtrip(self):
         """Love + verify the love/dislike surface WITHOUT clobbering a rating you

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `playlist(action="reorder")` moves one entry by 1-based position or applies a full permutation. Uses the web player's full-order PUT, preserves playlist identity and track occurrences, supports preview and read-back verification, and refuses incomplete reads or detected concurrent edits. Requires a web session and a web-editable playlist on any OS.
+
 ## [0.20.0] - 2026-08-22
 
 Security release. Reported privately by [@jaminben](https://github.com/jaminben) in GHSA-82fm-fh3q-54fj, with fixes and reproduction detail supplied alongside the report.
