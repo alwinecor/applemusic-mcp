@@ -16,8 +16,10 @@ once the user has signed in. The server routes here in ``api`` mode (and in
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Optional
+from urllib.parse import urljoin, urlsplit
 
 import requests
 
@@ -282,6 +284,110 @@ def get_tracks(playlist_id: str) -> list[dict]:
     except Exception:
         pass
     return out
+
+
+def _read_playlist_resources(path: str) -> list[dict]:
+    """Read every page or fail. Reordering must never use a partial track list."""
+    url = f"{AMP}/{path}?limit=100"
+    expected = urlsplit(url)
+    seen: set[str] = set()
+    out: list[dict] = []
+    headers = _headers()
+    total = None
+    while url:
+        parsed = urlsplit(url)
+        if (
+            parsed.scheme != expected.scheme
+            or parsed.netloc != expected.netloc
+            or parsed.path != expected.path
+            or url in seen
+        ):
+            raise ValueError("Invalid or repeated playlist pagination URL; reorder cancelled")
+        seen.add(url)
+        response = requests.get(url, headers=headers, timeout=TIMEOUT)
+        note_status(response.status_code)
+        if response.status_code != 200:
+            raise RuntimeError(_err(response, "read_playlist_order"))
+        body = response.json()
+        if not isinstance(body, dict) or not isinstance(body.get("data"), list):
+            raise ValueError("Invalid playlist response; reorder cancelled")
+        page = body["data"]
+        if any(not isinstance(item, dict) for item in page):
+            raise ValueError("Invalid playlist item; reorder cancelled")
+        out.extend(page)
+        meta = body.get("meta") or {}
+        if isinstance(meta, dict) and type(meta.get("total")) is int:
+            if total is not None and total != meta["total"]:
+                raise ValueError("Playlist changed during pagination; reorder cancelled")
+            total = meta["total"]
+        nxt = body.get("next")
+        if nxt is not None and not isinstance(nxt, str):
+            raise ValueError("Invalid playlist pagination; reorder cancelled")
+        if nxt and not page:
+            raise ValueError("Empty intermediate playlist page; reorder cancelled")
+        url = urljoin(url, nxt) if nxt else ""
+    if total is not None and len(out) != total:
+        raise ValueError("Incomplete playlist response; reorder cancelled")
+    return out
+
+
+def get_playlist_for_reorder(reference: str) -> dict:
+    """Resolve a library ID or an unambiguous exact name, without fuzzy writes."""
+    reference = reference.strip()
+    if not reference:
+        raise ValueError("playlist is required for reorder")
+    if re.fullmatch(r"p\.[A-Za-z0-9]+", reference):
+        matches = _read_playlist_resources(f"me/library/playlists/{reference}")
+        matches = [item for item in matches if item.get("id") == reference]
+    else:
+        matches = [
+            item
+            for item in _read_playlist_resources("me/library/playlists")
+            if (item.get("attributes") or {}).get("name", "").casefold() == reference.casefold()
+        ]
+    if not matches:
+        raise ValueError(f"Playlist {reference!r} not found; use its exact name or library ID")
+    if len(matches) != 1:
+        raise ValueError(f"Multiple playlists named {reference!r}; use a library playlist ID (p.…)")
+    playlist = matches[0]
+    if not re.fullmatch(r"p\.[A-Za-z0-9]+", playlist.get("id", "")):
+        raise ValueError("Invalid library playlist ID; reorder cancelled")
+    if (playlist.get("attributes") or {}).get("canEdit") is not True:
+        raise ValueError("The web API does not permit editing this playlist; reorder cancelled")
+    return playlist
+
+
+def get_playlist_order(playlist_id: str) -> list[dict]:
+    """The complete stored order, retaining resource types and repeated entries."""
+    if not re.fullmatch(r"p\.[A-Za-z0-9]+", playlist_id):
+        raise ValueError("Invalid library playlist ID")
+    return _read_playlist_resources(f"me/library/playlists/{playlist_id}/tracks")
+
+
+def reorder_tracks(playlist_id: str, tracks: list[dict]) -> tuple[bool, str]:
+    """PUT a complete order, as Apple's web player does. Caller validates membership.
+
+    Verified against requestUpdatePlaylistTracks in Apple's public web bundle:
+    https://music.apple.com/assets/index~3eb8a0d364.js (2026-09-03).
+    Never implement this by deleting/re-adding tracks or recreating the playlist.
+    """
+    if not re.fullmatch(r"p\.[A-Za-z0-9]+", playlist_id) or not tracks:
+        return False, "A library playlist ID and a non-empty complete order are required"
+    try:
+        response = requests.put(
+            f"{AMP}/me/library/playlists/{playlist_id}/tracks",
+            headers=_headers(),
+            json={"data": tracks},
+            timeout=TIMEOUT,
+        )
+        note_status(response.status_code)
+        if response.status_code in _OK:
+            return True, "Reorder request accepted"
+        return False, _err(response, "reorder_tracks")
+    except Exception as exc:
+        # A timeout can occur after Apple applied the PUT. Do not retry a write
+        # against an order that may already have changed.
+        return False, f"Reorder result is uncertain: {exc}. Read the playlist before retrying"
 
 
 def search_library_songs(term: str, limit: int = 25) -> list[dict]:

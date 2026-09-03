@@ -4997,10 +4997,35 @@ def playlist(
     verify: bool = True,
     auto_add: Optional[bool] = None,
     replace: str = "",
+    order: str = "",
+    from_position: int = 0,
+    to_position: int = 0,
 ) -> str:
-    """Playlist and folder operations. Actions: list, folders (macOS — show the folder tree; folders are NOT in `list`), tracks, search, create, add, copy, move, path (macOS), remove, delete, rename. (move/remove/delete/rename work on every OS — via Music.app on macOS, via the web API on Windows/Linux. Only folders/path are macOS-only.) To find a playlist by name, use action='list' with filter='jack' (loose name match) rather than action='search', which searches the TRACKS inside a given playlist and needs a playlist param. Folders support slash-separated paths (e.g. 'Summer/Chill/Deep'). For action='add', `track` accepts a song NAME, a catalog song id (a numeric id like '1440857781' — pins the EXACT edition, avoiding name/album version mismatches), or a library id; set auto_add=True to find tracks not already in the user's library — this is required to add catalog songs the user doesn't own. Note: adding a not-yet-owned catalog track to a Music.app-made playlist is two-step — it's added to the library over the API, then attached locally once iCloud syncs it down (usually seconds). If the sync is slow it may return "added to your library — re-run to attach"; just re-run the same add. Rarely, if the sync stalls past ~20s, Music.app briefly flashes to the foreground as a last-resort sync nudge — expected, not a glitch. To SWAP one track for another, use action='add' with `replace`=<the old track to remove>: it adds the new track, confirms it actually persisted, and only THEN removes the old one — so if the add silently reverts (a Music.app bug), the old track is kept rather than lost."""
+    """Playlist and folder operations. Actions: list, folders (macOS — show the folder tree; folders are NOT in `list`), tracks, search, create, add, copy, move, reorder, path (macOS), remove, delete, rename. (move/remove/delete/rename work on every OS — via Music.app on macOS, via the web API on Windows/Linux. Only folders/path are macOS-only.) To find a playlist by name, use action='list' with filter='jack' (loose name match) rather than action='search', which searches the TRACKS inside a given playlist and needs a playlist param. Folders support slash-separated paths (e.g. 'Summer/Chill/Deep'). For action='add', `track` accepts a song NAME, a catalog song id (a numeric id like '1440857781' — pins the EXACT edition, avoiding name/album version mismatches), or a library id; set auto_add=True to find tracks not already in the user's library — this is required to add catalog songs the user doesn't own. Note: adding a not-yet-owned catalog track to a Music.app-made playlist is two-step — it's added to the library over the API, then attached locally once iCloud syncs it down (usually seconds). If the sync is slow it may return "added to your library — re-run to attach"; just re-run the same add. Rarely, if the sync stalls past ~20s, Music.app briefly flashes to the foreground as a last-resort sync nudge — expected, not a glitch. To SWAP one track for another, use action='add' with `replace`=<the old track to remove>: it adds the new track, confirms it actually persisted, and only THEN removes the old one — so if the add silently reverts (a Music.app bug), the old track is kept rather than lost.
+
+    Reorder: action='reorder', playlist=<exact name or library ID p.…>, with
+    from_position=3, to_position=1 to move the third entry to the first position,
+    OR order='3,1,2' (also accepts a JSON array string) for the full new order.
+    Positions are 1-based in the current API playlist order; include every position
+    exactly once for a full order. Keeps the playlist ID and all track occurrences.
+    dry_run=True previews; verify=True (default) reads back to verify the write.
+    Requires web sign-in and a web-editable playlist on every OS, regardless of mode.
+    """
     action = action.lower().strip().replace("-", "_")
 
+    if action == "reorder":
+        if _forced_tokenless():
+            return "Error: " + _FORCED_TOKENLESS_MSG
+        from .playlist_order import reorder_playlist
+
+        return reorder_playlist(
+            playlist or name,
+            order=order,
+            from_position=from_position,
+            to_position=to_position,
+            dry_run=dry_run,
+            verify=verify,
+        )
     if action == "list":
         return _playlist_list(format, export, full, filter)
     elif action == "tracks":
@@ -5141,7 +5166,7 @@ def playlist(
         else:
             return _playlist_tree()
     else:
-        return f"Unknown action: {action}. Use: list, folders (macOS), tracks, search, create, add, copy, move, path (macOS), remove, delete, rename"
+        return f"Unknown action: {action}. Use: list, folders (macOS), tracks, search, create, add, copy, move, reorder, path (macOS), remove, delete, rename"
 
 
 # ============ LIBRARY MANAGEMENT ============
