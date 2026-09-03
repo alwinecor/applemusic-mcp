@@ -283,6 +283,9 @@ def main():
     sub = parser.add_subparsers(dest="command", help="Commands")
 
     sub.add_parser("serve", help="Run the MCP server (your client calls this)")
+    from .bridge import add_bridge_parser
+
+    add_bridge_parser(sub)
 
     login = sub.add_parser("login", help="Sign in (web flow; --dev for an Apple Developer token)")
     login.add_argument("--dev", action="store_true", help="Apple Developer token flow (.p8)")
@@ -334,6 +337,10 @@ def main():
         sys.exit(cmd_reset(args))
     elif args.command == "serve":
         cmd_serve(args)
+    elif args.command == "bridge":
+        from .bridge import cmd_bridge
+
+        sys.exit(cmd_bridge(args))
     else:
         parser.print_help()
         sys.exit(0)

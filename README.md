@@ -9,7 +9,22 @@
 
 MCP server for Apple Music. It gives any [MCP client](https://modelcontextprotocol.io/clients) (Claude, Cursor, Cline, Windsurf) control of your playlists, library, catalog, discovery, playback, and the Up Next queue. Runs on macOS, Windows, and Linux.
 
-**A Mac or an Apple Music subscription is all you need.** Four engines, chosen per call: Music.app and Safari on a Mac, the Apple Music API and Chrome on any OS.
+**For local use, a Mac or an Apple Music subscription is all you need.** Four engines, chosen per call: Music.app and Safari on a Mac, the Apple Music API and Chrome on any OS.
+
+## Connection options
+
+Choose how your assistant connects to the server:
+
+| Connection | Client | Entry point | Documentation |
+|---|---|---|---|
+| **Local MCP** (default) | A local MCP client such as Claude Desktop, Cursor, or Codex | `applemusic-mcp serve` | [Local MCP setup](#local-mcp-setup) |
+| **ChatGPT bridge** (optional) | ChatGPT Chat through a Secure MCP Tunnel plugin connection | `applemusic-mcp bridge` | [ChatGPT bridge guide](docs/chatgpt-bridge.md) |
+
+Both connections use the same local Apple Music engines. The bridge adds remote
+access through OpenAI Secure MCP Tunnel, saved tunnel credentials, and a tool for
+reading exports in ChatGPT. It requires a configured OpenAI tunnel and ChatGPT
+developer-mode access. Playback runs on the host computer, which must remain
+online with its desktop player available.
 
 ## Features
 
@@ -45,7 +60,12 @@ Four engines back the server. **Native** drives the local Music.app on macOS via
 
 Everything in the **API** column runs anywhere, no browser and no Music app. Browser playback and the queue need a desktop session and a web player — **Safari on macOS** (no install) or **Google Chrome** elsewhere.
 
-## Setup
+<a id="setup"></a>
+
+## Local MCP setup
+
+Use this setup when your MCP client starts the server locally over stdio. For a
+ChatGPT Chat plugin connection, follow the separate [ChatGPT bridge guide](docs/chatgpt-bridge.md).
 
 **Requirements:** Python 3.10+, plus either a Mac or an Apple Music subscription. The Chrome web player (cross-platform playback + Up Next queue) needs [Google Chrome](https://www.google.com/chrome/) + Playwright. **On macOS you can skip both** — sign in via Safari and play through the Music app — so the default macOS install is lightweight (no ~500 MB Playwright). Windows/Linux include Playwright automatically (it's the only path there).
 
