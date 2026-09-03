@@ -345,6 +345,8 @@ def test_force_tokenless_prevents_network(monkeypatch):
 
 def test_reorder_parameters_are_exposed_to_mcp_clients():
     tools = asyncio.run(server.mcp.list_tools())
-    tool = next(tool for tool in tools if tool.name == "playlist")
-    assert {"order", "from_position", "to_position"} <= tool.inputSchema["properties"].keys()
-    assert "reorder" in tool.description and "1-based" in tool.description
+    # MCP 2.x renamed Python fields to snake_case. Both majors serialize the
+    # same camelCase wire format, which is what clients actually consume.
+    tool = next(tool for tool in tools if tool.name == "playlist").model_dump(by_alias=True)
+    assert {"order", "from_position", "to_position"} <= tool["inputSchema"]["properties"].keys()
+    assert "reorder" in tool["description"] and "1-based" in tool["description"]
