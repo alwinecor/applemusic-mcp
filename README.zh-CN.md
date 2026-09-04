@@ -7,256 +7,450 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-server-purple.svg)](https://modelcontextprotocol.io/)
 
-Apple Music 的 MCP 服务器，让各类 [MCP 客户端](https://modelcontextprotocol.io/clients)（Claude、Cursor、Cline、Windsurf 等）管理歌单、资料库、音乐目录、发现推荐、播放和“待播清单”（Up Next）。支持 macOS、Windows 和 Linux。
+> **本仓库是 [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp) 的独立 fork。**
+>
+> 上游项目提供 Apple Music MCP server 的核心实现及本地 Apple Music 集成。本 fork 在此基础上继续开发，目前主要增加了 **ChatGPT bridge**、**歌单曲目顺序调整**，以及若干面向独立 fork 的集成、工作流与文档改进。
+>
+> 如需查看上游项目完整的功能说明、引擎实现、API 行为及原始文档，请直接参阅 **[上游 README](https://github.com/epheterson/applemusic-mcp#readme)**。
 
-**本地使用只需一台 Mac，或一个 Apple Music 订阅。** 四种引擎可按调用选择：Mac 上的 Music.app 和 Safari，以及跨平台的 Apple Music API 和 Chrome。
+## 关于本 fork
 
-## 连接方式
+上游项目由 Eric Pheterson 创建，提供了本仓库所基于的 Apple Music MCP 核心能力。
 
-根据助手的运行方式选择连接：
+概括而言，上游已经实现：
 
-| 连接方式 | 客户端 | 启动入口 | 说明 |
-|---|---|---|---|
-| **本地 MCP**（默认） | Claude Desktop、Cursor、Codex 等本地 MCP 客户端 | `applemusic-mcp serve` | [本地 MCP 配置](#local-mcp-setup) |
-| **ChatGPT bridge**（可选） | 通过 Secure MCP Tunnel 插件连接的 ChatGPT Chat | `applemusic-mcp bridge` | [ChatGPT bridge 使用指南](docs/chatgpt-bridge.zh-CN.md) |
+- **音乐目录与资料库访问**：搜索、浏览、最近播放/添加、推荐、排行榜、喜爱项目、支持情况下的评分，以及资料库写入。
+- **歌单管理**：列出、搜索、创建、添加/移除曲目、复制、重命名、删除、文件夹及相关歌单操作。
+- **播放与待播清单控制**：播放、暂停/切歌等 transport controls、音量/随机/循环、Now Playing、支持情况下的 AirPlay，以及 Up Next queue。
+- **多种 Apple Music 引擎**：macOS 上的 Music.app 与 Safari，以及跨平台的 Apple Music API 和基于 Chrome 的 MusicKit 路径。
+- **本地 MCP 运行方式**：通过标准的 `applemusic-mcp serve` stdio server 连接 Claude Desktop、Cursor、Cline、Windsurf、Codex 等本地 MCP 客户端。
 
-两种连接方式使用相同的本地 Apple Music 引擎。Bridge 通过 OpenAI Secure MCP Tunnel 提供远程访问，支持保存隧道凭据，并增加供 ChatGPT 读取导出文件的工具。它需要配置 OpenAI 隧道，并具有 ChatGPT 开发者模式权限。音乐仍在运行 MCP 的电脑上播放；该电脑需要保持在线，桌面播放器也需要可用。
+上游原有七组 action-based MCP 工具：
 
-<a id="features"></a>
+| 工具 | 主要用途 |
+|---|---|
+| `playlist` | 歌单与文件夹操作 |
+| `library` | 资料库搜索、浏览、写入、喜爱项目、评分、快照 |
+| `catalog` | Apple Music 目录搜索与元数据 |
+| `discover` | 推荐、排行榜、电台、相关艺人 |
+| `playback` | 播放、transport controls、设置、应用内显示、AirPlay |
+| `queue` | Up Next 待播清单管理 |
+| `config` | 登录、偏好、状态、审计日志、storefront |
 
-## 功能
+本 fork 目前主要增加或修改了：
 
-服务器提供四种引擎。**Native** 通过 AppleScript 控制 macOS 本机的 Music.app；**API** 在各操作系统上调用 Apple Music 网页 API（`amp-api.music.apple.com`）；**Safari** 在 macOS 上控制已登录的 Safari MusicKit 播放器，原生支持 DRM，无需额外安装；**Chrome** 在各操作系统上启动本地 Google Chrome 窗口，通过 MusicKit 播放 DRM 音频。
+1. **ChatGPT bridge**：通过 OpenAI Secure MCP Tunnel，将运行在本地的 MCP server 连接到 ChatGPT。
+2. **歌单曲目顺序调整**：增加 `playlist(action="reorder")`，支持预览、写入后验证，并针对不完整读取或检测到的并发编辑进行保护。
+3. **其他 fork-specific 改进**：英/中文文档、bridge 安装与启动工具、验证测试、批量曲目参数说明，以及适合独立 fork 的维护调整。
 
-`mode` 偏好决定默认引擎：`auto`（默认）组合各引擎的能力，在 macOS 上用 Music.app 播放、Safari 管理待播清单、API 获取数据，其他平台使用 Chrome。也可固定为 `native` / `safari` / `chrome` / `api`，或通过 `engine=` 覆盖某一次播放或队列调用。下表的 **Browser** 同时包含 Safari 和 Chrome 网页播放器。`✓` 表示支持，`✗` 表示该引擎无法实现，`—` 表示不适用。
+此后，本 fork 将主要围绕 **ChatGPT 远程连接、更丰富的歌单操作、集成可靠性，以及工作流/文档完善** 继续独立开发。适合的上游更新仍可能继续合并，但本仓库特有的功能由本 fork 独立维护，不应被视为上游项目已经实现或正式支持的功能。
 
-| 功能 | Native（Music.app）macOS | API（amp-api）各平台 | Browser（Safari：macOS / Chrome：各平台） |
-|---|:---:|:---:|:---:|
-| **音乐目录搜索 / 浏览** | ✓ | ✓（另支持无需 token 的匹配解析） | — |
-| 推荐 / 排行榜 / 搜索建议 | ✗ | ✓ | — |
-| **资料库搜索 / 浏览** | ✓ | ✓ | — |
-| 按流派搜索 | ✓ | ✗ | — |
-| 最近播放 / 最近添加 | ✓ | ✓ | — |
-| **将目录中的音乐加入资料库** | ✓ | ✓ | ✓（页面内 POST） |
-| 从资料库移除 | ✓ | ✓ | — |
-| 喜欢 / 不喜欢 | ✓ | ✓ | — |
-| **1–5 星评分** | ✓ | ✗ | ✗ |
-| 喜爱项目列表 | ✓ | ✗ | ✗ |
-| **歌单**创建 / 添加 / 移除 / 重命名 | ✓ | ✓ | — |
-| 复制歌单 | ✓ | ✗ | — |
-| 删除歌单 | ✓ | ✓（网页 token） | — |
-| 文件夹：单层及移入 / 移出 | ✓ | ✓ | — |
-| 文件夹：嵌套路径 / 树 / `path` | ✓ | ✗ | ✗ |
-| **播放**：歌曲 / 专辑 / 歌单 / URL | ✓ | — | ✓ |
-| 控制：暂停 / 停止 / 下一首 / 上一首 / 跳转进度 | ✓ | — | ✓ |
-| 设置：音量 / 随机播放 / 循环播放 | ✓ | — | ✓ |
-| 当前播放信息 `now_playing` | ✓ | — | ✓ |
-| **待播清单**：查看 / 下一首 / 最后播放 / 移除 / 跳转 / 清空 / 自动播放 | ✗ | — | ✓ |
-| 在应用中显示 | ✓ | — | ✓（页面跳转） |
-| 选择 AirPlay 设备 | ✓ | ✗ | ✗ |
-| 资料库快照 / 完整性检查 | ✓ | ✗ | ✗ |
-| **无需 Apple 账户即可使用** | ✓ | ✗ | ✗ |
-| **跨平台（Windows / Linux）** | ✗ | ✓ | ✓ |
-
-**API** 列中的功能均可独立运行，不需要浏览器或“音乐”应用。浏览器播放和待播清单需要桌面会话及网页播放器：macOS 可用 **Safari**（无需安装），其他平台使用 **Google Chrome**。
-
-<a id="setup"></a>
-<a id="local-mcp-setup"></a>
+---
 
 ## 本地 MCP 配置
 
-本节适用于由本地 MCP 客户端通过 stdio 启动服务器的方式。要在 ChatGPT Chat 中建立插件连接，请参阅独立的 [ChatGPT bridge 使用指南](docs/chatgpt-bridge.zh-CN.md)。
+如果只需要上游原始版本及其标准本地 MCP 功能，最简单的安装方式仍然是直接按照 **[上游 README](https://github.com/epheterson/applemusic-mcp#readme)** 操作。
 
-**要求：** Python 3.10+，以及一台 Mac 或一个 Apple Music 订阅。Chrome 网页播放器提供跨平台播放和待播清单功能，需要 [Google Chrome](https://www.google.com/chrome/) 和 Playwright。**macOS 可以不安装这两项**：通过 Safari 登录，并使用“音乐”应用播放。因此 macOS 默认安装较轻量，不包含约 500 MB 的 Playwright 下载。Windows / Linux 默认包含 Playwright，因为这是这些平台的播放路径。
+如果需要使用**本 fork 的新增功能**，应从本仓库源码安装。
 
-**Claude Code** 可用一行命令配置：
+### 使用要求
+
+- Python 3.10+
+- 下述源码工作流使用的 [uv](https://docs.astral.sh/uv/)
+- 以下条件之一：使用 Mac 上的 Music.app / Safari 路径，或拥有 Apple Music 订阅以使用 API / 浏览器路径
+- 使用 Chrome 网页播放器引擎时需要 Google Chrome + Playwright
+
+### 从源码安装
 
 ```bash
-claude mcp add "Apple Music" -- uvx applemusic-mcp serve
+git clone https://github.com/alwinecor/applemusic-mcp.git
+cd applemusic-mcp
+uv sync --extra dev
 ```
 
-**Claude Desktop / Cursor / Cline / Windsurf**：先安装，再添加配置：
+在仓库环境中启动本地 stdio MCP server：
+
+**Windows**
+
+```powershell
+.\.venv\Scripts\applemusic-mcp.exe serve
+```
+
+**macOS / Linux**
 
 ```bash
-pipx install applemusic-mcp        # 或：pip install applemusic-mcp
-# 非 macOS 平台还需下载浏览器引擎：playwright install chromium
-# macOS 可使用 Safari 登录 + Music.app，无需上述浏览器安装。
-# 若要在 Mac 使用 Chrome 网页播放器：
-# pipx install 'applemusic-mcp[browser]'，然后 playwright install chromium
+./.venv/bin/applemusic-mcp serve
 ```
+
+在本地 MCP 客户端中，将 `command` 指向上述可执行文件，并传入 `serve`。
+
+例如：
 
 ```json
 {
   "mcpServers": {
     "Apple Music": {
-      "command": "applemusic-mcp",
+      "command": "/absolute/path/to/applemusic-mcp/.venv/bin/applemusic-mcp",
       "args": ["serve"]
     }
   }
 }
 ```
 
-重启客户端，然后试着说：“列出我的 Apple Music 歌单”或“播放我喜欢的歌曲”。macOS 本地资料库和播放功能可以立即使用。要添加目录中的音乐，或在其他操作系统上使用，请先登录。
+Windows 请改为 `.venv\Scripts\applemusic-mcp.exe` 对应的绝对路径。
 
-### 登录
+### Apple Music 登录
 
-跨平台 API 支持两种凭据获取方式。
-
-**Apple Developer token（推荐）。** 这是 Apple 官方支持的路径，需要加入 [Apple Developer Program](https://developer.apple.com/programs/) 并创建 MusicKit 密钥。一条引导命令即可写入配置、生成有效期为 6 个月的 token，并完成授权：
+上游 server 主要提供两种跨平台授权方式：
 
 ```bash
-applemusic-mcp login --dev      # 提示输入 Team ID、Key ID 和 .p8 路径
+applemusic-mcp login --dev
 ```
 
-获取 MusicKit 密钥的方法见[附录](#appendix-developer-token)。
-
-**网页登录。** 这是快捷路径，也是直接运行 `applemusic-mcp login` 的默认行为。密码不会交给本工具；登录状态会保留，token 会在过期前重新获取。也可以直接让助手帮你启动登录流程。网页登录使用 Apple 网页播放器 API，与 [Cider](https://github.com/ciderapp/Cider-2)、[Music Assistant](https://www.music-assistant.io/music-providers/apple-music/) 等开源客户端采用的路径相同。
-
-- **macOS：从已登录的 Safari 读取会话，无需 Chrome 或约 500 MB 的 Playwright。**
-
-  ```bash
-  applemusic-mcp login            # macOS 默认从 Safari 获取会话
-  applemusic-mcp status           # 检查状态
-  ```
-
-  Safari 需要一次性设置：在 **Safari → 设置 → 高级** 中启用 **“显示网页开发者功能”**，再从 **“开发”** 菜单启用 **“允许来自 Apple 事件的 JavaScript”**。这是由你手动开启的安全选项，工具不会代为切换。请先在 Safari 的 [music.apple.com](https://music.apple.com) 页面登录。工具通过该功能从你自己的 Safari 会话中读取一个 cookie，即 Apple Music token；之后可关闭该选项。如果选项未开启或尚未登录，`login` 会给出处理步骤，也可改用 `--dev` 或 `--chrome`。想在 Mac 上使用 Chrome，可先运行 `pip install 'applemusic-mcp[browser]'`，再运行 `applemusic-mcp login --chrome`。使用 Safari 登录并配合 Music.app 播放时，Mac 完全不需要 Chrome。
-
-- **Windows / Linux：打开本地 Chrome。** 这些平台默认安装 Playwright，并使用这一路径。
-
-  ```bash
-  applemusic-mcp login            # 打开 Chrome 的 music.apple.com 页面，登录一次即可
-  ```
-
-**批量操作建议使用 `--dev`。** 网页登录使用 Apple 网页播放器的公共 token，请求配额与其他使用者共享。普通交互通常不会触及限额，但每小时数百次目录搜索，例如导入歌单或迁移资料库，可能触发 `HTTP 429`。这条路径不会返回 `Retry-After`，限流采用约 60 分钟的滚动窗口，短暂等待通常不能解除，继续重试还可能延长等待。`applemusic-mcp login --dev` 使用你自己的 MusicKit 密钥，拥有独立且更大的配额。遭遇限流时，工具会明确报告，不会把空结果当成“找不到歌曲”。
-
-<details>
-<summary>配置文件位置、引擎模式与源码安装</summary>
-
-**客户端配置文件：** Claude Desktop 在 macOS 上使用 `~/Library/Application Support/Claude/claude_desktop_config.json`，Windows 上使用 `%APPDATA%\Claude\claude_desktop_config.json`。Cursor、Cline、Windsurf 使用同样的 `mcpServers` 结构，具体位置请参阅各客户端文档。
-
-**`mode` 偏好**决定引擎：`auto` 默认组合各引擎；`native` 只使用 Music.app，无需账户；`safari` 控制已登录的 Safari，仅限 macOS，无需 Chrome / Playwright；`chrome` 使用跨平台 Chrome 网页播放器；`api` 只使用 REST，支持数据读取和写入，不支持播放。可通过对话设置，例如 `config(action="set-pref", preference="mode", string_value="safari")`。单次播放或队列调用可用 `engine=`（`native` / `safari` / `chrome` / `web`）覆盖，例如先在 Safari 排队，再调用 `playback(action="play", engine="safari")`。操作队列会将对应引擎设为当前活动引擎，后续播放控制也会发往该引擎。Safari 引擎操作你实际使用的 Safari，但只操作 `music.apple.com` 标签页；Chrome 使用独立窗口。
-
-**Chrome 网页播放器功能**需要 Google Chrome 和 Playwright。非 macOS 平台默认安装 Playwright；**macOS 需自行选择安装**（`pip install 'applemusic-mcp[browser]'`），因为 Safari 登录和 Music.app 播放已能覆盖常见需求。安装后需执行一次浏览器下载：`playwright install chromium`，或 `uvx --from applemusic-mcp playwright install chromium`。Playwright 自带的 Chromium 无法解码 Apple DRM，因此仍需安装真正的 Chrome。这些功能会打开本地 Chrome 窗口，不适合无桌面的服务器。网页播放器会自动使用现有登录凭据授权，无需再次登录：Safari 获取的 token 或开发者 token 会传入播放器配置。因此在 macOS 上，一次 `login` 即可覆盖 API、原生播放以及 Chrome 网页播放器和队列。
-
-**源码安装：** `git clone … && pip install -e .`，然后将客户端配置的 `command` 指向 `<repo>/venv/bin/applemusic-mcp`，也可使用 `python -m applemusic_mcp`。
-
-</details>
-
-## 官方 API 与网页接口
-
-服务器通过三条路径访问 Apple Music，并优先使用可用的官方方式：
-
-- **Apple Music API（官方）。** 使用 `login --dev` 生成的开发者 token，调用 Apple 公开文档中的 `api.music.apple.com`。
-- **网页播放器（社区使用的路径）。** 使用已登录 `music.apple.com` 会话的 token 调用网页播放器后端，与 [Cider](https://github.com/ciderapp/Cider-2)、[Music Assistant](https://www.music-assistant.io/music-providers/apple-music/) 类似，补充公开 API 未提供的功能。
-- **Music.app（macOS）。** 通过 AppleScript 在本机操作你自己的应用，无需 token 或网络。
-
-有开发者 token 时，写入优先使用官方 API；只有公开 API 无法完成的操作才走网页接口。仅使用网页登录时，操作走网页接口。在 macOS 上，资料库和歌单编辑还可以在 Music.app 本地完成。每次写入都会报告使用了哪条路径。
-
-| 写入操作 | Apple Music API | 网页播放器 | Music.app（macOS） |
-|---|:---:|:---:|:---:|
-| 添加到资料库 | ✓ | ✓ | ✓ |
-| 创建歌单 | ✓ | ✓ | ✓ |
-| 添加歌曲到 API 创建的歌单 | ✓ | ✓ | ✓ |
-| 添加歌曲到 Music.app 创建的歌单 | ✗ | ✗ | ✓ |
-| 1–5 星评分 | ✗ | ✗ | ✓ |
-| 喜欢 / 不喜欢 | ✓ | ✓ | ✓ |
-| 删除歌单 | ✗ | ✓ | ✓ |
-| 重命名 / 移入文件夹 | 部分支持 | ✓ | ✓ |
-
-`✗` 表示对应路径无法完成该操作，工具会尝试其他路径。Apple 的一项限制是：**只有创建歌单的客户端才能编辑该歌单**。因此，Music.app 创建的歌单不能通过开发者 token API 或网页播放器写入；macOS 上会转为 Music.app 本地添加，其他平台应使用 API / 网页创建的歌单。
-
-## 使用示例
-
-直接告诉助手你想做什么：
-
-- “创建一个叫 Road Trip 的歌单，加入节奏明快的 90 年代另类音乐。”
-- “把 Hey Jude 加到 Road Trip 歌单，再从健身歌单移除最后 3 首。”
-- “把我的歌单整理到摇滚、爵士、电子三个文件夹里。”
-- “随机播放健身歌单，并将 Bohemian Rhapsody 设为下一首。”
-- “找一些和 Bohemian Rhapsody 类似的歌曲，加入我的资料库。”
-- “我最近都听了什么？现在排行榜上有什么？”
-- “将我的资料库导出为 CSV。”
-
-## 工具
-
-七组以 `action` 为入口的工具减少 MCP 上下文占用。每组工具按操作选择相应引擎。
-
-| 工具 | 操作 |
-|---|---|
-| `playlist` | list, folders, tracks, search, create, add, copy, move, reorder, remove, delete, rename, path（歌单和文件夹） |
-| `library` | search, add, browse, favorites, recently_played, recently_added, rate, remove, snapshot |
-| `catalog` | search, resolve, album_tracks, album_details, song_details, artist_details, genres, suggestions |
-| `discover` | recommendations, heavy_rotation, charts, top_songs, similar_artists, personal_station, song_station |
-| `playback` | play（歌曲 / 专辑 / 歌单 / URL）, control, now_playing, settings, reveal, airplay |
-| `queue` | list, set, play_next, play_last, remove, jump, clear, autoplay（待播清单：macOS 默认 Safari，其他平台默认 Chrome；可用 `engine=` 指定） |
-| `config` | status, signin, logout, reset, set-pref, audit-log, clear-audit-log, list-storefronts |
-
-<details>
-<summary>常用模式</summary>
-
-- **`track` 一个参数即可批量传入歌曲。** 可传单个名称或 ID、逗号或换行分隔的列表，或 JSON 数组（`["A","B"]`、`[{"name":"A","artist":"X"}]`）。整张专辑可用 `album`。
-- **从其他服务导入歌单时，先匹配，再添加。** `catalog(action="resolve", …)` 将曲目列表匹配为目录 ID，不执行写入。有 ISRC 时使用 `isrcs=`；Spotify、Rekordbox 和 Plex 导出都可能包含 ISRC，可以每次请求精确匹配 25 首，避免逐首模糊搜索带来的 `429`。使用 `tracks=` 传入名称和艺人时，结果会报告匹配置信度，便于写入前识别错误版本；这条路径每首歌曲需要一次请求，默认最多处理 25 首，可通过 `max_tracks` 提高。两种方式返回的 ID 均可直接交给 `playlist(action="add", track=…)`。
-- **添加前预览：** `playlist(action="add", …, dry_run=True)` 会执行与实际添加相同的匹配，并比较歌单现有内容，但不写入。例如仅搜索 `Dont Let Me Down` 而不指定艺人，可能匹配到 The Chainsmokers 而非 The Beatles，预览可提前发现。它只预览匹配和重复情况，不保证后续写入一定成功。
-- **调整歌单顺序：** `playlist(action="reorder", playlist="Road Trip", from_position=5, to_position=2)` 将第 5 项移到第 2 项。也可用 `order="3,1,2"` 指定三首歌的完整顺序，或传 JSON 数组字符串。位置从 **1 开始，以当前 API 歌单顺序为准**，不受播放器界面排序或随机播放影响。完整顺序必须包含每个位置且仅出现一次，包括重复歌曲的不同位置。`dry_run=True` 可预览；默认写入后验证，`verify=False` 可跳过验证。操作保留歌单 ID 和曲目成员，包括音乐视频。任意操作系统上均需要网页登录会话和网页 API 标记为可编辑的歌单，不受 `mode` 影响；名称须精确且唯一，也可使用资料库歌单 ID（`p.…`）。写入前会完整读取并再次检查，拒绝不完整数据或已发现的并发编辑；该检查不是对其他设备编辑的原子锁。失败或结果不确定的写入不会自动重试，审计日志会记录原顺序及目标顺序供检查。
-- **添加到歌单时**会自动搜索目录并跳过重复歌曲。连续填充歌单的工作流可将 `auto_add` 偏好设为 `true`（默认 `false`）。`track` 也支持**目录歌曲 ID**（例如 `1440857781`），便于准确指定不同发行版本。
-- **将尚未入库的目录歌曲加入 Music.app 创建的歌单，需要两步。** 开发者 API 无法直接写入这类歌单，工具会先通过 API 加入资料库，再等 iCloud 同步到本机后附加到歌单，通常只需几秒。同步较慢时会提示“已加入资料库，请重新执行以添加到歌单”，此时重复同一次添加即可。少数情况下，同步等待超过约 20 秒后，Music.app 会短暂显示以触发最后一次同步尝试，然后将焦点还给原应用，这是预期行为。
-- **列表输出格式：** `format` 可为 `text` / `json` / `csv` / `none`；`export` 将结果写入文件，通过 `exports://` MCP resource 读取；`full` 包含完整元数据。
-- **URL 播放**支持专辑、歌单和歌曲：`playback(action="play", url="https://music.apple.com/...")`。
-- **地区商店：** 目录操作支持可选的 `storefront`，例如 `storefront="it"`，可查询其他地区而不修改默认设置。
-
-</details>
-
-## CLI
+使用 Apple Developer MusicKit key，是推荐的官方 API 路径。
 
 ```bash
-applemusic-mcp serve            # 启动 MCP 服务器，由客户端调用
-applemusic-mcp login            # 网页登录：macOS 使用 Safari，Windows/Linux 使用 Chrome
-applemusic-mcp login --chrome   # 强制使用 Chrome 网页播放器，macOS 需选装
-applemusic-mcp login --dev      # Apple Developer token 授权流程（.p8）
-applemusic-mcp logout           # 退出登录，可用于切换账户
-applemusic-mcp status           # 显示认证状态
-applemusic-mcp reset --force    # 清除凭据，保留 .p8 密钥文件
-applemusic-mcp reset --all --force   # 完全卸载状态：同时删除 .p8、浏览器配置和缓存
+applemusic-mcp login
 ```
 
-## 使用提示
+使用已经登录的 Apple Music 网页会话。macOS 可从 Safari 获取会话；Windows / Linux 使用 Chrome 路径。
 
-- **macOS 播放需要屏幕解锁并授予辅助功能权限。** 原生目录播放通过 System Events 操作 Music.app，并移动鼠标点击播放。请在“系统设置 → 隐私与安全性 → 辅助功能”中授权，或设置 `mode="safari"` 改用 Safari 网页播放器，后者无需辅助功能权限或 Chrome。
-- **Safari 首次播放需要一次真实点击。** 新打开或重新加载的标签页受浏览器自动播放规则限制，必须先手动点击 Apple Music 页面中的 ▶。之后即可免手动操作地播放、暂停和切歌。如果工具显示队列已就绪，但歌曲停在 0:00，通常只需在页面点击一次播放。
-- **新创建的歌单需要短暂等待**，云端完成同步后才能通过 API 添加歌曲；已有歌单通常可立即操作。
-- **部分功能仅限 macOS**，没有对应的 Apple Music API：1–5 星评分、喜爱项目、资料库快照、AirPlay 和嵌套文件夹路径。
-- **目录操作开始失败时**，请重新运行 `applemusic-mcp login`。部分歌单会静默撤销 AppleScript 修改，这是一个[已知的 Music.app 问题](https://www.macscripter.net/t/add-current-track-from-apple-music-to-playlist/72058)；服务器会检测并报告这种回滚。
+在 macOS 上，本地 Music.app 路径本身也可以在不使用跨平台 API 的情况下覆盖相当一部分资料库和播放功能。
 
-<a id="appendix-developer-token"></a>
-
-## 附录：开发者 token
-
-推荐使用此路径。加入 [Apple Developer Program](https://developer.apple.com/programs/) 后：
-
-1. **获取 MusicKit 密钥。** 打开 [Apple Developer Portal → Keys](https://developer.apple.com/account/resources/authkeys/list)，点击 **+**、填写名称、勾选 **MusicKit**、注册，然后下载仅能下载一次的 `.p8` 文件。记录 **Key ID** 和 **Team ID**。
-2. **运行引导流程：**
-
-   ```bash
-   applemusic-mcp login --dev
-   ```
-
-   按提示输入 Team ID、Key ID 和 `.p8` 路径，也可用 `--team-id`、`--key-id`、`--key-path` 参数传入。工具会写入 `~/.config/applemusic-mcp/config.json`，生成有效期为 180 天、使用时自动续期的开发者 token，并授权用户 token。
+完整的引擎能力矩阵、浏览器要求、token 行为、限流及 Apple 相关注意事项请查看 **[上游 README](https://github.com/epheterson/applemusic-mcp#readme)**。
 
 ---
 
-## 上游项目与本分支开发
+## ChatGPT bridge 配置
 
-本仓库是 [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp) 的独立 fork，原项目由 Eric Pheterson 创建。
+这是本 fork 在上游本地 MCP 基础上新增的功能。
 
-上游项目提供 Apple Music MCP 服务器的核心实现及本地 Apple Music 集成功能。本 fork 在此基础上继续开发。目前已经加入或完成的主要改动包括：
+ChatGPT bridge 通过 **OpenAI Secure MCP Tunnel**，将同一个本地 Apple Music MCP server 提供给 ChatGPT Chat 使用。
 
-- **ChatGPT bridge：** 通过 OpenAI Secure MCP Tunnel，让 ChatGPT Chat 可以远程连接运行在本地的 Apple Music MCP server；同时支持保存隧道凭据，并提供可供 ChatGPT 读取导出内容的机制。
-- **歌单曲目顺序调整：** 为 `playlist` 工具增加 `reorder` action，可在保留歌单本身及曲目成员的前提下调整顺序，并支持预览、写入后验证和并发修改检查。
-- **其他细节改进：** 随着开发继续进行，包含一些较小的集成、兼容性、工作流和文档层面的调整与完善。
+Bridge 运行在实际承载 Apple Music 引擎的电脑上。它不会把 Apple Music 的执行过程迁移到云端：资料库操作、浏览器自动化、Music.app 控制和音乐播放仍发生在主机电脑。
 
-在条件合适时，本 fork 仍可能继续吸收上游项目的更新。本仓库特有的功能由本 fork 独立维护，不应视为上游项目的一部分，也不代表获得上游项目的官方支持。
+### 架构
 
-ChatGPT bridge 的架构和配置方式见 [docs/chatgpt-bridge.zh-CN.md](docs/chatgpt-bridge.zh-CN.md)。
+```text
+ChatGPT Chat 插件连接
+             |
+OpenAI Secure MCP Tunnel
+             | 主机发起的出站 HTTPS 连接
+本地 tunnel-client
+             | stdio
+applemusic_mcp.bridge_server
+             |
+现有 Apple Music API / Chrome / Safari / Music.app 引擎
+```
+
+官方 `tunnel-client` 负责传输与隧道认证。Bridge 启动一个本地 MCP 进程，并串行将请求派发给它，因此远程调用共享同一个播放器及引擎状态。
+
+由于连接由主机主动向外建立，私有 tunnel 不需要在本地电脑上开放互联网入站端口。
+
+这里介绍的 tunnel 主要用于 ChatGPT developer mode 下的个人/工作区私有连接。公开发布 plugin 需要不同的公网托管和认证配置。
+
+### 使用要求
+
+- 包含 bridge 实现的本 fork 源码
+- Python 3.10+
+- Windows 源码工作流使用的 `uv`
+- 已在主机上配置好准备使用的 Apple Music 引擎
+- 官方 [OpenAI tunnel-client](https://github.com/openai/tunnel-client/releases/latest)
+- 目标 ChatGPT 账户或工作区的 developer mode 权限
+- 一个与该 ChatGPT 工作区关联的 OpenAI tunnel
+- 具有 **Tunnels Read + Use** 权限的 runtime API key
+- 创建或修改 tunnel 时需要 **Read + Manage** 权限
+
+Tunnel 凭据用于让本地 bridge 向 OpenAI 认证。Apple Music 凭据仍保留在本地 Apple Music 引擎中，用于向 Apple 完成相应认证。
+
+### Windows bridge 配置
+
+在仓库根目录的 PowerShell 中执行以下步骤。
+
+#### 第 1 步：安装项目和 tunnel client
+
+```powershell
+uv sync --extra dev
+```
+
+然后安装官方 Windows tunnel client：
+
+```powershell
+.\scripts\install-bridge.ps1
+```
+
+安装脚本会根据检测到的系统架构下载当前官方 release，对照 release 提供的 SHA-256 校验值进行验证，然后解压到 `.bridge/tunnel-client`。下载的 bridge 二进制文件和压缩包不会纳入 Git。
+
+#### 第 2 步：检查本地 MCP
+
+```powershell
+.\scripts\start-bridge.ps1 -Check
+```
+
+该命令会执行真实的本地 stdio 握手，并检查 bridge 暴露的原有 MCP 工具定义是否与本地 server 保持一致。此步骤**不需要** OpenAI key，也**不会**建立到 ChatGPT 的连接。
+
+#### 第 3 步：准备 OpenAI tunnel
+
+在 [OpenAI Tunnel settings](https://platform.openai.com/settings/organization/tunnels) 中创建或选择 tunnel，将其关联到准备使用该 tunnel 的 ChatGPT workspace，并获取具有对应 tunnel 权限的 runtime API key。
+
+运行 bridge 应使用 runtime key，而不是 admin key。
+
+#### 第 4 步：启动 bridge
+
+```powershell
+.\scripts\start-bridge.ps1
+```
+
+首次启动时，在本地终端输入 Tunnel ID 和 runtime API key。密钥输入会隐藏。启动器会保存所选 tunnel 的相关配置，后续启动可以自动复用。
+
+ChatGPT 使用 bridge 期间需要保持该终端运行。默认本地状态页：
+
+```text
+http://127.0.0.1:8787/ui
+```
+
+按 **Ctrl+C** 停止 bridge。
+
+### 从 ChatGPT 连接 tunnel
+
+配置连接和发现工具时，请保持 bridge 正在运行。
+
+1. 在 ChatGPT 中打开 **Settings > Security and login**，启用 **Developer mode**。
+2. 打开 **ChatGPT Plugins**，添加新的 plugin / connection。
+3. 填写名称，例如 **Apple Music Local Bridge**。
+4. 在 **Connection** 中选择 **Tunnel**。
+5. 选择对应 tunnel，或输入 Tunnel ID。
+6. 创建连接并检查发现出的工具。
+7. 在新对话中选择该 plugin，可以先检查连接状态，再尝试列出歌单。
+
+Bridge 会暴露上游原有七组 Apple Music 工具，以及额外的只读 `exports` 工具。
+
+读写操作仍受 ChatGPT 的工具权限、确认设置和账户/工作区策略约束。
+
+官方参考：
+
+- [Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
+- [Connect plugins to ChatGPT](https://developers.openai.com/plugins/deploy/connect-chatgpt)
+- [Developer mode](https://developers.openai.com/api/docs/guides/developer-mode)
+
+### 凭据保存与日常使用
+
+日常使用只需运行：
+
+```powershell
+.\scripts\start-bridge.ps1
+```
+
+Windows 下，凭据分别保存在项目配置和操作系统凭据存储中：
+
+| 内容 | 保存位置 |
+|---|---|
+| 当前选择的 Tunnel ID | `~/.config/applemusic-mcp/bridge.json` |
+| Runtime API key | Windows Credential Manager，service 为 `applemusic-mcp-bridge`，按 Tunnel ID 区分 |
+
+配置文件只保存 Tunnel ID。API key 在启动时被注入 tunnel client 的进程环境，不会写入明文 key 文件，也不会作为命令行参数传递。如果安全凭据存储失败，启动器会报错，而不是自动降级为明文保存。
+
+要更换凭据，或只保存凭据而不启动 bridge：
+
+```powershell
+.\scripts\start-bridge.ps1 -Setup
+```
+
+显式 CLI 参数和环境变量的优先级高于已保存值。
+
+### Bridge CLI 与其他平台
+
+在 macOS 或 Linux 上，安装官方 `tunnel-client` 并将其加入 `PATH`，也可以使用 `--client` 显式指定路径。
+
+在已安装本 fork 的 Python 环境中运行：
+
+```bash
+applemusic-mcp bridge --check
+applemusic-mcp bridge --setup
+applemusic-mcp bridge --doctor
+applemusic-mcp bridge
+```
+
+主要选项：
+
+| 选项 | 用途 |
+|---|---|
+| `--check` | 验证本地 MCP 工具定义和资源发现，然后退出 |
+| `--setup` | 输入并保存 bridge 凭据，然后退出 |
+| `--doctor` | 运行官方 tunnel-client 诊断 |
+| `--interactive` | 在本地提示输入缺失凭据 |
+| `--remember` | 保存选择的 Tunnel ID 和 runtime key |
+| `--tunnel-id ID` | 覆盖已保存的 Tunnel ID |
+| `--client PATH` | 指定 tunnel-client 可执行文件 |
+| `--health-port PORT` | 设置本机回环状态端口；默认 `8787`，`0` 为自动分配 |
+
+`--check`、`--setup` 和 `--doctor` 互斥。
+
+环境变量：
+
+| 变量 | 用途 |
+|---|---|
+| `CONTROL_PLANE_TUNNEL_ID` | 覆盖 Tunnel ID |
+| `CONTROL_PLANE_API_KEY` | 覆盖 runtime API key |
+| `APPLEMUSIC_TUNNEL_CLIENT` | 覆盖 tunnel-client 可执行文件 |
+
+如果系统没有可用的 credential store，可以通过环境变量提供凭据，并省略 `--remember`。
+
+原有本地 server 的启动入口仍然保留；bridge 是新增的 transport path，并不会取代 stdio MCP。
+
+### Bridge 工具与导出
+
+Bridge 复用 `playlist`、`library`、`catalog`、`discover`、`playback`、`queue` 和 `config`。这些工具的 action 实现和 schema 与本地 MCP server 保持一致，包括歌单写入和排序、播放、队列管理、登录和偏好设置。
+
+原有导出资源继续可用：
+
+```text
+exports://list
+exports://{filename}
+```
+
+Bridge 另外增加一个只读 `exports` 工具，供能够调用工具、但不能直接消费 MCP resource 的客户端读取导出内容。
+
+列出导出文件：
+
+```json
+{"action": "list"}
+```
+
+读取导出：
+
+```json
+{"action": "read", "filename": "tracks_YYYYMMDD_HHMMSS.csv"}
+```
+
+CSV / JSON 文件仍保存在主机上。工具返回其文本内容；主机本地文件路径不会自动变成 ChatGPT 中可下载的附件。
+
+### Bridge 运行限制
+
+- **主机可用性**：主机需要保持在线且不休眠。
+- **播放位置**：音乐由主机电脑播放；bridge 不会把 Apple Music 音频流传入 ChatGPT。
+- **桌面环境**：浏览器 / Music.app 播放仍要求主机桌面会话和播放器可用。
+- **平台能力**：bridge 不会创造新的引擎能力，例如 Windows 不会因此获得 macOS 专属的 Music.app、AirPlay 或星级评分功能。
+- **播放器占用**：避免同时运行多个争用同一 Chrome profile 的 MCP 实例；bridge 会自行管理一个本地 MCP 进程。
+- **Apple Music 登录**：交互式 Apple Music 授权仍需在主机完成；远程调用复用主机的凭据与偏好。
+
+### Bridge 故障排查
+
+| 问题 | 检查内容 |
+|---|---|
+| ChatGPT 找不到 tunnel | Workspace 关联以及 **Tunnels Read + Use** 权限 |
+| 工具发现/调用失败 | 保持 bridge 运行；执行 `.\scripts\start-bridge.ps1 -Doctor`；查看本地状态页 |
+| 再次要求输入凭据 | OS 账户、配置目录以及 credential store 是否可访问 |
+| 更换 key 后仍未生效 | 检查环境变量覆盖，然后使用预期值运行 `-Setup` |
+| `8787` 端口被占用 | 改用其他 `--health-port` |
+| 资料库查询正常但播放失败 | 主机桌面会话、Apple Music 登录、引擎选择、Chrome profile 占用 |
+| 更新后工具定义变化 | 重启 bridge、刷新 ChatGPT connection，并开启新对话 |
+
+### Bridge 开发与验证
+
+运行 bridge 相关测试：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/test_bridge.py tests/test_bridge_tunnel.py tests/test_cli_cov.py -q
+```
+
+测试覆盖凭据复用/覆盖、子进程凭据处理、本地 stdio 初始化、工具 schema 一致性、导出路径边界；安装官方 client 后，还会通过隔离的本机回环 control plane 验证实际 tunnel forwarding。
+
+本 fork 当前记录的 bridge 验证基准为 Windows 上的 MCP Python SDK **1.25.0** 与官方 tunnel-client **0.0.14**。升级相关依赖后应重新运行验证。
+
+---
+
+## 新增工具：歌单曲目顺序调整
+
+本 fork 增加：
+
+```text
+playlist(action="reorder")
+```
+
+用于调整已有、可编辑 Apple Music 歌单中实际储存的曲目顺序，而无需重新创建歌单，也不会通过删除并重新添加曲目的方式实现。
+
+### 移动一项
+
+```text
+playlist(
+  action="reorder",
+  playlist="Road Trip",
+  from_position=5,
+  to_position=2
+)
+```
+
+将第 5 项移动到第 2 项。
+
+### 指定完整顺序
+
+```text
+playlist(
+  action="reorder",
+  playlist="Road Trip",
+  order="3,1,2"
+)
+```
+
+完整 permutation 也可以使用 JSON 数组字符串。
+
+### Reorder 语义与保护机制
+
+- 位置从 **1 开始**，对应歌单当前的 API 顺序。
+- 播放器界面排序方式和 shuffle 状态不会改变这些储存位置。
+- 完整 permutation 必须包含当前每个位置，并且每个位置只出现一次。
+- 重复歌曲会作为不同 occurrence 保留。
+- 音乐视频及支持的 track resource types 会保留。
+- 歌单 ID 和歌单曲目成员不会改变。
+- `dry_run=True` 可在不写入的情况下预览目标顺序。
+- 默认在写入后重新读取并验证。
+- `verify=False` 可提交写入但跳过写入后验证。
+- 写入前会读取完整歌单，若分页结果不完整则拒绝执行。
+- 真正写入前会再次检查，若发现准备过程中发生了编辑则取消 reorder。
+- 该检查并不是跨设备的原子锁；最终检查之后，其他设备仍可能同时修改歌单。
+- 写入结果不确定时**不会自动重试**，因为 timeout 可能发生在 Apple 已经接受新顺序之后。
+- 审计日志会记录原顺序和请求的新顺序，供后续检查。
+
+### 使用要求
+
+Reorder 走 Apple Music 网页播放器 API 路径，因此需要：
+
+- 已登录的网页会话；
+- 一个被网页 API 标记为可编辑的歌单；
+- 精确且唯一的歌单名称，或 `p.…` 形式的 library playlist ID。
+
+由于这是歌单 web-API 操作而非播放引擎操作，因此在支持的操作系统上不依赖当前 playback `mode`。
+
+---
+
+## 其他 fork-specific 改动
+
+除上述两项主要功能之外，本 fork 当前还包含一些较小的开发改动：
+
+- **进一步明确批量曲目参数说明**，使 MCP 客户端更容易识别一个 `track` 参数可以一次传入多首曲目，包括数组、逗号分隔和换行分隔形式。
+- **增加英/中文项目文档**以及完整的 ChatGPT bridge 双语说明。
+- **增加 Windows bridge 安装与启动脚本**，并补充针对 bridge / tunnel 的验证测试。
+- **禁用/移除个人 fork 不需要的上游自动发布流程**，避免本仓库的日常开发误触发面向上游 package/release 的发布工作流。
+- 后续仍可能继续加入较小的兼容性、集成、工作流和文档调整。
+
+这些内容由本 fork 独立维护，不作为上游项目行为进行描述。
+
+---
+
+## 后续开发方向
+
+本仓库会在吸收有价值的上游更新的同时，主要沿以下方向继续独立开发：
+
+- ChatGPT 与远程 MCP 连接
+- 更安全、更丰富的歌单编辑能力
+- 更好的批量操作与面向 AI assistant 的工具 ergonomics
+- 本地/远程集成的可靠性与验证
+- 面向个人部署的文档及 setup workflow
+
+适合的 upstream changes 仍可能继续 merge，但本 fork 的特有功能并不默认会被上游接受、发布或提供支持。
+
+---
 
 ## 许可证
 
@@ -270,4 +464,6 @@ Apple Music 是 Apple Inc. 的商标。本项目为非官方社区项目，与 A
 
 ## 致谢
 
-[FastMCP](https://github.com/jlowin/fastmcp) · [Apple MusicKit](https://developer.apple.com/documentation/applemusicapi) · [Model Context Protocol](https://modelcontextprotocol.io/)
+上游项目：[epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp)
+
+本项目由 @alwinecor 与Codex / ChatGPT 共同实现。
