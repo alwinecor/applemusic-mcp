@@ -466,4 +466,4 @@ Apple Music is a trademark of Apple Inc. This is an unofficial community project
 
 Upstream project: [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp)
 
-This project is developed by @alwinecor with Codex / ChatGPT.
+This project is developed by [@alwinecor](https://github.com/alwinecor) with Codex / ChatGPT.
