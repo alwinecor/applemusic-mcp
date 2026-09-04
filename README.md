@@ -429,7 +429,7 @@ It works independently of playback `mode` on supported operating systems because
 In addition to the two main features above, this fork currently contains several smaller development changes:
 
 - **Batch-track tool descriptions were clarified** so MCP clients can more reliably see that a single `track` parameter can accept multiple tracks, including arrays and comma/newline-separated input.
-- **Bilingual project documentation** was added for the fork and the ChatGPT bridge.
+- **Bilingual README documentation**, including integrated ChatGPT bridge setup instructions.
 - **Bridge installation and startup scripts** were added for the Windows workflow, together with focused bridge/tunnel tests.
 - **Personal-fork release automation was disabled/removed** so development in this repository does not accidentally run upstream-oriented publishing workflows.
 - Smaller compatibility, integration, workflow, and documentation refinements may be added as the fork evolves.
