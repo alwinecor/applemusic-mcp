@@ -103,6 +103,7 @@ def test_setup_replaces_saved_key_without_starting_tunnel(monkeypatch, capsys):
 
 def test_real_stdio_preserves_original_schemas():
     report = asyncio.run(bridge.check_local())
+    assert report["server"] == "Apple Music"
     assert report["preserved_tools"] == [
         "catalog",
         "config",
@@ -173,7 +174,7 @@ def test_exports_tool_preserves_content_and_blocks_traversal(monkeypatch, tmp_pa
     assert tool("read", "tracks.csv") == content
     assert "outside-secret" not in tool("read", "../private.txt")
     assert "Error" in tool("read", "")
-    assert registered["annotations"].readOnlyHint is True
+    assert registered["annotations"].model_dump(by_alias=True)["readOnlyHint"] is True
 
 
 def test_find_explicit_client(tmp_path):

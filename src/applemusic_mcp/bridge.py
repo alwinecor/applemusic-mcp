@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 from datetime import timedelta
+from importlib.metadata import version
 from pathlib import Path
 
 from . import paths
@@ -200,6 +201,8 @@ async def check_local() -> dict:
     from mcp.client.stdio import stdio_client
     from .server import mcp
 
+    # MCP 1.x takes a timedelta; 2.x takes seconds as a float.
+    timeout = timedelta(seconds=30) if version("mcp").split(".")[0] == "1" else 30.0
     expected = {tool.name: tool.model_dump() for tool in await mcp.list_tools()}
     params = StdioServerParameters(
         command=sys.executable,
@@ -207,9 +210,7 @@ async def check_local() -> dict:
         env=dict(os.environ, PYTHONIOENCODING="utf-8"),
     )
     async with stdio_client(params) as (read, write):
-        async with ClientSession(
-            read, write, read_timeout_seconds=timedelta(seconds=30)
-        ) as session:
+        async with ClientSession(read, write, read_timeout_seconds=timeout) as session:
             initialized = await session.initialize()
             result = await session.list_tools()
             actual = {tool.name: tool.model_dump() for tool in result.tools}
@@ -221,12 +222,16 @@ async def check_local() -> dict:
             resources = await session.list_resources()
             templates = await session.list_resource_templates()
             await session.send_ping()
+    # Wire aliases are stable across MCP 1.x and 2.x's Python field renames.
     return {
-        "server": initialized.serverInfo.name,
+        "server": initialized.model_dump(by_alias=True)["serverInfo"]["name"],
         "preserved_tools": sorted(expected),
         "additional_tools": sorted(set(actual) - set(expected)),
         "resources": [str(resource.uri) for resource in resources.resources],
-        "resource_templates": [template.uriTemplate for template in templates.resourceTemplates],
+        "resource_templates": [
+            template["uriTemplate"]
+            for template in templates.model_dump(by_alias=True)["resourceTemplates"]
+        ],
     }
 
 

@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
 """Assert every version surface in the repo agrees with pyproject.toml.
 
-A release touches SEVEN places, and two of them silently resist the obvious
-bump method:
+Check the package, lockfile, skill, and changelog versions. This fork no longer
+ships the upstream ``server.json`` MCP registry manifest.
 
-  * ``server.json`` is the MCP registry manifest. No workflow reads or writes it,
-    so nothing notices when it drifts — it sat at ``1.0.0`` while the package
-    shipped 0.16.0, which would have advertised a 1.0 that does not exist.
-  * ``uv.lock`` does NOT follow an edit to pyproject. It only changes when ``uv``
-    itself runs, which can happen after you commit — 0.18.0 shipped with the
-    lockfile still naming 0.17.0.
-
-Both are cosmetic right up until they aren't, and neither is visible in a diff you
-weren't already looking at. So: check them mechanically, in the pre-release gate
+``uv.lock`` does NOT follow an edit to pyproject. It only changes when ``uv``
+itself runs, which can happen after you commit — 0.18.0 shipped with the
+lockfile still naming 0.17.0. Check mechanically in the pre-release gate
 (fast feedback) and again in release.yml (blocks a bad tag).
 
 Exit 0 if consistent, 1 otherwise, listing every mismatch rather than the first.
@@ -20,7 +14,6 @@ Exit 0 if consistent, 1 otherwise, listing every mismatch rather than the first.
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
@@ -54,11 +47,6 @@ def _surfaces(expected: str) -> list[tuple[str, str | None]]:
 
     m = re.search(r"^version: (.+)$", _read("SKILL.md"), re.M)
     out.append(("SKILL.md frontmatter", m.group(1).strip() if m else None))
-
-    server = json.loads(_read("server.json"))
-    out.append(("server.json version", server.get("version")))
-    packages = server.get("packages") or [{}]
-    out.append(("server.json packages[0].version", packages[0].get("version")))
 
     # The changelog needs a section for this version or release.yml silently falls
     # back to auto-generated notes.
