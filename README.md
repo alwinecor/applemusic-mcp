@@ -2,11 +2,9 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-[![Release](https://img.shields.io/github/v/release/epheterson/applemusic-mcp.svg?label=release)](https://github.com/epheterson/applemusic-mcp/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-15%20%7C%2026-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Downloads](https://static.pepy.tech/badge/applemusic-mcp)](https://pepy.tech/project/applemusic-mcp)
 [![MCP](https://img.shields.io/badge/MCP-server-purple.svg)](https://modelcontextprotocol.io/)
 
 MCP server for Apple Music. It gives any [MCP client](https://modelcontextprotocol.io/clients) (Claude, Cursor, Cline, Windsurf) control of your playlists, library, catalog, discovery, playback, and the Up Next queue. Runs on macOS, Windows, and Linux.
@@ -239,23 +237,30 @@ The preferred path. With an [Apple Developer Program](https://developer.apple.co
 
 ---
 
-## Star History
+## Upstream and development
 
-[![Star History Chart](https://api.star-history.com/svg?repos=epheterson/applemusic-mcp&type=Date)](https://star-history.com/#epheterson/applemusic-mcp&Date)
+This repository is an independent fork of [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp), originally created by Eric Pheterson.
 
----
+The upstream project provides the core Apple Music MCP server and its local Apple Music integrations. This fork continues development on top of that foundation. Current additions and changes include:
+
+- **ChatGPT bridge:** remote access from ChatGPT Chat to a locally running Apple Music MCP server through OpenAI Secure MCP Tunnel, including persisted tunnel credentials and ChatGPT-readable exports.
+- **Playlist reordering:** a new `reorder` action for changing track order while preserving the playlist and its membership, with preview, verification, and concurrency checks.
+- **Additional refinements:** smaller integration, compatibility, workflow, and documentation improvements made as development continues.
+
+Where practical, upstream changes may continue to be incorporated into this fork. Features specific to this repository are maintained independently and should not be considered part of, or officially supported by, the upstream project.
+
+See [docs/chatgpt-bridge.md](docs/chatgpt-bridge.md) for the ChatGPT bridge architecture and setup instructions.
 
 ## License
 
-MIT · *Unofficial community project — not affiliated with or endorsed by Apple. Uses your own Apple Music account for personal use; follow Apple's terms.*
+This project is distributed under the [MIT License](LICENSE).
 
-<!-- Identifier for the official MCP Registry (PyPI ownership check). -->
-mcp-name: io.github.epheterson/applemusic-mcp
+It is based on and contains code from [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp), Copyright © 2024 Eric Pheterson, also licensed under the MIT License.
+
+Modifications and additional functionality in this fork are released under the same MIT License.
+
+Apple Music is a trademark of Apple Inc. This is an unofficial community project and is not affiliated with or endorsed by Apple or OpenAI.
 
 ## Credits
 
 [FastMCP](https://github.com/jlowin/fastmcp) · [Apple MusicKit](https://developer.apple.com/documentation/applemusicapi) · [Model Context Protocol](https://modelcontextprotocol.io/)
-
----
-
-Built with ❤️ in California by [@epheterson](https://github.com/epheterson) and [Claude Code](https://claude.com/claude-code).
