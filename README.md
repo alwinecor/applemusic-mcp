@@ -458,8 +458,6 @@ This project is distributed under the [MIT License](LICENSE).
 
 It is based on and contains code from [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp), Copyright © 2024 Eric Pheterson. Modifications and additional functionality in this fork are Copyright © 2026 alwinecor. Both are distributed under the MIT License.
 
-Modifications and additional functionality in this fork are released under the same MIT License.
-
 Apple Music is a trademark of Apple Inc. This is an unofficial community project and is not affiliated with or endorsed by Apple or OpenAI.
 
 ## Credits
