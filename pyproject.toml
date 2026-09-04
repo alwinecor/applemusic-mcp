@@ -10,7 +10,8 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Eric Pheterson" }
+    { name = "Eric Pheterson" },
+    { name = "alwinecor" }
 ]
 keywords = ["mcp", "apple-music", "musickit", "playlist", "claude"]
 classifiers = [
@@ -75,9 +76,10 @@ dev = [
 applemusic-mcp = "applemusic_mcp.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/epheterson/applemusic-mcp"
-Repository = "https://github.com/epheterson/applemusic-mcp"
-Issues = "https://github.com/epheterson/applemusic-mcp/issues"
+Homepage = "https://github.com/alwinecor/applemusic-mcp"
+Repository = "https://github.com/alwinecor/applemusic-mcp"
+Issues = "https://github.com/alwinecor/applemusic-mcp/issues"
+Upstream = "https://github.com/epheterson/applemusic-mcp"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/applemusic_mcp"]
