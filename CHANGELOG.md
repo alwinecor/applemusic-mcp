@@ -1,15 +1,22 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+This changelog records notable changes in this fork as well as the upstream release history inherited from [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## Fork-specific changes
 
-## [Unreleased]
+The following changes were introduced and are maintained by [alwinecor/applemusic-mcp](https://github.com/alwinecor/applemusic-mcp). They are independent fork development and should not be interpreted as features released or supported by the upstream project.
 
 ### Added
 
+- Optional ChatGPT bridge using OpenAI Secure MCP Tunnel, with the original seven tools and an additional read-only `exports` tool. Includes Windows installation and startup scripts, saved tunnel credentials in the system credential store, local diagnostics, and integrated setup documentation in the README.
+
 - `playlist(action="reorder")` moves one entry by 1-based position or applies a full permutation. Uses the web player's full-order PUT, preserves playlist identity and track occurrences, supports preview and read-back verification, and refuses incomplete reads or detected concurrent edits. Requires a web session and a web-editable playlist on any OS.
+
+---
+
+# Upstream release history
+
+The entries below are inherited from the upstream project and describe upstream releases prior to this fork's independent development.
 
 ## [0.20.1] - 2026-08-27
 

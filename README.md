@@ -1,239 +1,467 @@
 # applemusic-mcp
 
-[![Release](https://img.shields.io/github/v/release/epheterson/applemusic-mcp.svg?label=release)](https://github.com/epheterson/applemusic-mcp/releases)
+**English** | [简体中文](README.zh-CN.md)
+
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-15%20%7C%2026-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Downloads](https://static.pepy.tech/badge/applemusic-mcp)](https://pepy.tech/project/applemusic-mcp)
 [![MCP](https://img.shields.io/badge/MCP-server-purple.svg)](https://modelcontextprotocol.io/)
 
-MCP server for Apple Music. It gives any [MCP client](https://modelcontextprotocol.io/clients) (Claude, Cursor, Cline, Windsurf) control of your playlists, library, catalog, discovery, playback, and the Up Next queue. Runs on macOS, Windows, and Linux.
+> **Independent fork of [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp).**
+>
+> The upstream project provides the core Apple Music MCP server and local Apple Music integrations. This fork builds on that foundation with a **ChatGPT bridge**, **playlist track reordering**, and additional fork-specific integration and workflow refinements.
+>
+> For the complete upstream feature set, engine details, API behavior, and original documentation, see the **[upstream README](https://github.com/epheterson/applemusic-mcp#readme)**.
 
-**A Mac or an Apple Music subscription is all you need.** Four engines, chosen per call: Music.app and Safari on a Mac, the Apple Music API and Chrome on any OS.
+## About this fork
 
-## Features
+The upstream project, originally created by Eric Pheterson, provides the Apple Music MCP foundation used here.
 
-Four engines back the server. **Native** drives the local Music.app on macOS via AppleScript. **API** uses Apple Music's web API (`amp-api.music.apple.com`) on any OS. **Safari** drives your signed-in Safari's MusicKit on macOS (DRM-native, zero install). **Chrome** runs a local Google Chrome window with MusicKit for DRM audio on any OS. One `mode` preference picks the engine — `auto` (default) mixes the best of each: native Music.app for playback on macOS, Safari for the Up Next queue, the API for data, Chrome off-mac. Pin one with `native` / `safari` / `chrome` / `api`, or override a single playback/queue call with `engine=`. In the table below, the **Browser** column covers both the Safari and Chrome web players. `✓` supported, `✗` not possible on that engine, `—` not applicable there.
+At a high level, upstream supports:
 
-|Capability|Native (Music.app) macOS|API (amp-api) any OS|Browser (Safari macOS / Chrome any OS)|
-|---|:---:|:---:|:---:|
-|**Catalog search / browse**|✓|✓ (+ tokenless resolve)|—|
-|Recommendations / charts / suggestions|✗|✓|—|
-|**Library search / browse**|✓|✓|—|
-|Genre search|✓|✗|—|
-|Recently played / added|✓|✓|—|
-|**Add catalog → library**|✓|✓|✓ (in-page POST)|
-|Remove from library|✓|✓|—|
-|Love / dislike|✓|✓|—|
-|**1–5 star ratings**|✓|✗|✗|
-|Favorites list|✓|✗|✗|
-|**Playlist** create / add / remove / rename|✓|✓|—|
-|Playlist copy|✓|✗|—|
-|Playlist delete|✓|✓ (web token)|—|
-|Folders: single level + move in/out|✓|✓|—|
-|Folders: nested paths / tree / `path`|✓|✗|✗|
-|**Playback**: play song / album / playlist / URL|✓|—|✓|
-|Controls: pause / stop / next / prev / seek|✓|—|✓|
-|Settings: volume / shuffle / repeat|✓|—|✓|
-|now_playing|✓|—|✓|
-|**Up Next queue**: view / next / last / remove / jump / clear / autoplay|✗|—|✓|
-|Reveal in app|✓|—|✓ (navigates page)|
-|AirPlay device select|✓|✗|✗|
-|Library snapshot / integrity|✓|✗|✗|
-|**Works with no Apple account**|✓|✗|✗|
-|**Cross-platform (Win/Linux)**|✗|✓|✓|
+- **Catalog and library access** — search, browse, recently played/added items, recommendations, charts, favorites, ratings where supported, and library writes.
+- **Playlist management** — list, search, create, add/remove tracks, copy, rename, delete, folders, and related playlist operations.
+- **Playback and queue control** — playback, transport controls, volume/shuffle/repeat, Now Playing, AirPlay where supported, and the Up Next queue.
+- **Multiple Apple Music engines** — Music.app and Safari on macOS, plus Apple Music API and Chrome-based MusicKit paths across platforms.
+- **Local MCP operation** — the standard `applemusic-mcp serve` stdio server for local MCP clients such as Claude Desktop, Cursor, Cline, Windsurf, and Codex.
 
-Everything in the **API** column runs anywhere, no browser and no Music app. Browser playback and the queue need a desktop session and a web player — **Safari on macOS** (no install) or **Google Chrome** elsewhere.
+The original seven action-based MCP tools are:
 
-## Setup
+| Tool | Main purpose |
+|---|---|
+| `playlist` | Playlist and folder operations |
+| `library` | Library search, browse, writes, favorites, ratings, snapshots |
+| `catalog` | Apple Music catalog search and metadata |
+| `discover` | Recommendations, charts, stations, related artists |
+| `playback` | Playback, transport, settings, reveal, AirPlay |
+| `queue` | Up Next queue management |
+| `config` | Sign-in, preferences, status, audit log, storefronts |
 
-**Requirements:** Python 3.10+, plus either a Mac or an Apple Music subscription. The Chrome web player (cross-platform playback + Up Next queue) needs [Google Chrome](https://www.google.com/chrome/) + Playwright. **On macOS you can skip both** — sign in via Safari and play through the Music app — so the default macOS install is lightweight (no ~500 MB Playwright). Windows/Linux include Playwright automatically (it's the only path there).
+This fork currently adds or changes:
 
-**Claude Code**, one line:
+1. **ChatGPT bridge** — connects the locally running MCP server to ChatGPT through OpenAI Secure MCP Tunnel.
+2. **Playlist track reordering** — adds `playlist(action="reorder")` with preview, verification, and safeguards around partial or concurrent edits.
+3. **Fork-specific refinements** — bilingual documentation, bridge installation/startup tooling, validation tests, clearer batch-track tool descriptions, and maintenance changes appropriate to an independently developed fork.
+
+The fork will continue independent development primarily around **remote ChatGPT connectivity, richer playlist manipulation, integration reliability, and workflow/documentation improvements**. Upstream changes may still be incorporated where useful, but fork-specific features are maintained independently and should not be interpreted as upstream functionality or support.
+
+---
+
+## Local MCP setup
+
+If you only need the original upstream package and local MCP behavior, the simplest installation path remains the one documented in the [upstream README](https://github.com/epheterson/applemusic-mcp#readme).
+
+To run **this fork**, install it from source so the fork-specific features are available.
+
+### Requirements
+
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) for the source workflow below
+- Either a Mac for local Music.app/Safari paths, or an Apple Music subscription for API/browser-backed features
+- Google Chrome + Playwright when using the Chrome web-player engine
+
+### Install from source
 
 ```bash
-claude mcp add "Apple Music" -- uvx applemusic-mcp serve
+git clone https://github.com/alwinecor/applemusic-mcp.git
+cd applemusic-mcp
+uv sync --extra dev
 ```
 
-**Claude Desktop / Cursor / Cline / Windsurf**, install once, then add the config block:
+Start the local stdio MCP server from the repository environment:
+
+**Windows**
+
+```powershell
+.\.venv\Scripts\applemusic-mcp.exe serve
+```
+
+**macOS / Linux**
 
 ```bash
-pipx install applemusic-mcp        # or: pip install applemusic-mcp
-# Off macOS, also fetch the browser engine:  playwright install chromium
-# macOS needs neither (Safari sign-in + Music.app). For the Chrome web player on a
-# Mac:  pipx install 'applemusic-mcp[browser]'  then  playwright install chromium
+./.venv/bin/applemusic-mcp serve
 ```
+
+For a local MCP client, point the client at that executable and pass `serve`.
+
+Example shape:
 
 ```json
 {
   "mcpServers": {
     "Apple Music": {
-      "command": "applemusic-mcp",
+      "command": "/absolute/path/to/applemusic-mcp/.venv/bin/applemusic-mcp",
       "args": ["serve"]
     }
   }
 }
 ```
 
-Restart your client and try *"List my Apple Music playlists"* or *"Play my favorites."* On macOS the local library and playback work immediately. To add catalog music or run on any OS, sign in.
+On Windows, use the corresponding absolute path to `.venv\Scripts\applemusic-mcp.exe`.
 
-### Sign in
+### Apple Music sign-in
 
-Two paths capture the credentials for the cross-platform API.
-
-**Apple Developer token (preferred).** The sanctioned route, an [Apple Developer Program](https://developer.apple.com/programs/) membership with a MusicKit key. One guided command writes the config, mints a 6-month token, and authorizes:
+The upstream server provides two main cross-platform authorization paths:
 
 ```bash
-applemusic-mcp login --dev      # prompts for Team ID, Key ID, and .p8 path
+applemusic-mcp login --dev
 ```
 
-See the [appendix](#appendix-developer-token) for getting the MusicKit key.
-
-**Web sign-in.** The quick path, and what plain `applemusic-mcp login` does. Your password never touches this tool, sign-in persists, and tokens re-fetch before they expire. You can also sign in conversationally — just ask your assistant. (Web sign-in uses Apple's web-player API, the same path as open-source clients like [Cider](https://github.com/ciderapp/Cider-2) and [Music Assistant](https://www.music-assistant.io/music-providers/apple-music/).)
-
-- **macOS — reads from a signed-in Safari (no Chrome, no ~500 MB Playwright):**
-
-  ```bash
-  applemusic-mcp login            # macOS default: harvests from Safari
-  applemusic-mcp status           # verify
-  ```
-
-  One-time Safari setting (a security toggle — *you* enable it, the tool never flips it): **Safari → Settings → Advanced → "Show features for web developers"**, then the **Develop** menu → **"Allow JavaScript from Apple Events."** Sign into Apple Music at [music.apple.com](https://music.apple.com) in Safari first. That setting only lets the tool read **one cookie** — your Apple Music token — from your own signed-in Safari, and you can switch it back off afterward. If it's off or you're not signed in, `login` prints exactly how to fix it (or use `--dev`, or `--chrome`). Prefer Chrome on a Mac? `pip install 'applemusic-mcp[browser]'`, then `applemusic-mcp login --chrome`. Combined with native Music.app playback, a Mac needs no Chrome at all.
-
-- **Windows / Linux — opens a local Chrome** (Playwright ships by default there; it's the only path):
-
-  ```bash
-  applemusic-mcp login            # opens Chrome to music.apple.com; sign in once
-  ```
-
-**Bulk work wants `--dev`.** Web sign-in uses Apple's *public* web-player token, and its request quota is shared rather than yours alone. Interactive use never gets near it, but a few hundred catalog searches in an hour — a playlist import, a library migration — will hit `HTTP 429`. Apple sends no `Retry-After` on this path and the window is **rolling and ~60 minutes long**, so a short cooldown doesn't clear it and retrying extends it. `applemusic-mcp login --dev` uses your own MusicKit key, which gets its own much larger quota. When you are throttled the tool says so explicitly, rather than letting the empty results read as "song not found."
-
-<details>
-<summary>Config locations, mode, and source install</summary>
-
-**Config file:** Claude Desktop uses `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows). Cursor, Cline, and Windsurf use the same `mcpServers` shape, see your client's docs.
-
-**`mode` preference** picks the engine: `auto` (default — best of each: native Music.app for playback on macOS, **Safari** for the Up Next queue, the API for data; **Chrome** off-mac), `native` (Music.app only, no account), `safari` (drive your signed-in Safari — macOS, no Chrome/Playwright), `chrome` (Chrome web player, any OS), or `api` (REST only — data + writes, no playback). Set it conversationally: `config(action="set-pref", preference="mode", string_value="safari")`. A per-call `engine=` (`native` / `safari` / `chrome` / `web`) overrides one playback or queue call (e.g. queue in Safari, then `playback(action="play", engine="safari")`). Using the queue makes its engine the active one, so transport controls reach it. The Safari engine drives the actual Safari you're browsing in (only ever a `music.apple.com` tab); Chrome uses an isolated window.
-
-**Browser (Chrome web player) features** — cross-platform playback + the Up Next queue — need Google Chrome plus Playwright. Off macOS, Playwright is installed by default; **on macOS it's an opt-in extra** (`pip install 'applemusic-mcp[browser]'`) since Safari sign-in + native Music.app playback already cover the Mac. After installing, run the one-time browser download (`playwright install chromium`, or `uvx --from applemusic-mcp playwright install chromium`). The bundled Chromium can't decode Apple's DRM, so a real Chrome install is required, and these features open a local Chrome window (not for headless servers). You don't sign in twice: the web player authorizes off your existing sign-in (the Safari-harvested or developer token is bridged into its profile automatically), so on macOS a single `login` covers the API, native playback, *and* the Chrome web player/queue.
-
-**From source:** `git clone … && pip install -e .`, then point the config `command` at `<repo>/venv/bin/applemusic-mcp` or use `python -m applemusic_mcp`.
-</details>
-
-## What's sanctioned vs web
-
-This server reaches Apple Music three ways and prefers the most official one available:
-
-- **Apple Music API (sanctioned).** Your own developer token (from `login --dev`) against `api.music.apple.com`, Apple's documented API.
-- **Web player (community path).** A token from a signed-in `music.apple.com` session against the web player's backend — the same approach as [Cider](https://github.com/ciderapp/Cider-2) and [Music Assistant](https://www.music-assistant.io/music-providers/apple-music/). It fills the few gaps the public API doesn't expose.
-- **Music.app (macOS).** Local AppleScript automation of your own app. No tokens, no network.
-
-With a developer token, writes go through the sanctioned API; the web path is used only for the operations Apple's public API can't do. With web sign-in alone, everything runs on the web path. On macOS, library and playlist edits can also run locally through Music.app. Each write tells you which path it took.
-
-| Write | Apple Music API | Web player | Music.app (macOS) |
-|---|:---:|:---:|:---:|
-| Add to library | ✓ | ✓ | ✓ |
-| Create playlist | ✓ | ✓ | ✓ |
-| Add tracks (API-made playlist) | ✓ | ✓ | ✓ |
-| Add tracks (Music.app-made playlist) | ✗ | ✗ | ✓ |
-| Rate 1 to 5 | ✗ | ✗ | ✓ |
-| Love / dislike | ✓ | ✓ | ✓ |
-| Delete playlist | ✗ | ✓ | ✓ |
-| Rename / move into folder | partial | ✓ | ✓ |
-
-The `✗` cells are operations the column's path can't do, so they route elsewhere. One Apple constraint to know: **only the client that created a playlist can edit it**, so a playlist made in Music.app can't be written by *either* the dev-token API or the web player — on macOS those adds go through Music.app locally; off macOS, add to an API/web-created playlist instead.
-
-## Usage
-
-Just talk to your assistant:
-
-- *"Create a playlist called Road Trip and fill it with upbeat 90s alternative."*
-- *"Add Hey Jude to my Road Trip playlist, and drop the last 3 tracks from my workout one."*
-- *"Organize my playlists into Rock, Jazz, and Electronic folders."*
-- *"Play my workout playlist on shuffle, and queue up Bohemian Rhapsody next."*
-- *"Find songs similar to Bohemian Rhapsody and add them to my library."*
-- *"What have I been listening to lately, and what's topping the charts?"*
-- *"Export my library to CSV."*
-
-## Tools
-
-Seven action-based tools keep the MCP context small. Each takes an `action` and routes to the right engine.
-
-| Tool | Actions |
-|---|---|
-| `playlist` | list, folders, tracks, search, create, add, copy, move, reorder, remove, delete, rename, path (playlists and folders) |
-| `library` | search, add, browse, favorites, recently_played, recently_added, rate, remove, snapshot |
-| `catalog` | search, resolve, album_tracks, album_details, song_details, artist_details, genres, suggestions |
-| `discover` | recommendations, heavy_rotation, charts, top_songs, similar_artists, personal_station, song_station |
-| `playback` | play (track / album / playlist / URL), control, now_playing, settings, reveal, airplay |
-| `queue` | list, set, play_next, play_last, remove, jump, clear, autoplay (Up Next — Safari on macOS, Chrome elsewhere; `engine=` to pick) |
-| `config` | status, signin, logout, reset, set-pref, audit-log, clear-audit-log, list-storefronts |
-
-<details>
-<summary>Common patterns</summary>
-
-- **`track` is one parameter that batches.** Pass a single name or ID, a comma- or newline-separated list, or a JSON array (`["A","B"]` or `[{"name":"A","artist":"X"}]`). Whole albums via `album`.
-- **Importing a playlist from elsewhere? Resolve first, then add.** `catalog(action="resolve", …)` turns a track list into catalog IDs and writes nothing. Pass `isrcs=` when you have them — Spotify, Rekordbox, and Plex exports all carry ISRCs — and it matches *exactly*, 25 per request, instead of one fuzzy search per track (which is what puts a large import into `429` territory). Pass `tracks=` for titles/artists and it reports how confident each match is, so a wrong edition gets caught before it's written — that path costs one request per track, so it stops at 25 unless you raise `max_tracks`. Either way the IDs go straight to `playlist(action="add", track=…)`.
-- **Previewing an add? `playlist(action="add", …, dry_run=True)`.** Same resolution the real add would do, plus a diff against what's already in the playlist, writing nothing. Ask for `Dont Let Me Down` without an artist and you get The Chainsmokers, not The Beatles — this is where you see that before it lands. It previews matching and duplicates only; it doesn't claim to predict whether the write itself succeeds.
-- **Reorder a playlist:** `playlist(action="reorder", playlist="Road Trip", from_position=5, to_position=2)` moves the fifth entry to the second position. Alternatively, `order="3,1,2"` sets the full order of a three-track playlist; a JSON array string works too. Positions are **1-based in the current API playlist order**, independent of a player's display sort or shuffle. Full orders must include every position exactly once, including repeated songs. Use `dry_run=True` to preview; writes are verified by default (`verify=False` submits without verification). This preserves the playlist ID and its track membership, including music videos. It requires a signed-in web session and a playlist the web API marks editable on any OS, regardless of `mode`; names must match exactly and uniquely, or use a library playlist ID (`p.…`). Complete reads and a second check before writing reject partial data and detected concurrent edits. That check is not an atomic lock against edits from other devices. Failed or uncertain writes are not automatically retried; the audit log records the previous and requested order for inspection.
-- **Adding to a playlist** auto-searches the catalog and skips duplicates. Set the `auto_add` preference to `true` for "fill this playlist" workflows (default `false`). `track` also accepts a **catalog song id** (e.g. `1440857781`) to pin an exact edition when a name would be version-ambiguous.
-- **Adding a not-yet-owned catalog track to a *Music.app-made* playlist is two-step.** The dev-token API can't write those playlists, so the tool adds the track to your library over the API, then attaches it locally once iCloud syncs it down (usually seconds). If the sync is slow you'll get "added to your library — re-run to attach"; just re-run the same add. Rarely, if the sync stalls past ~20s, Music.app briefly flashes as a last-resort sync nudge (focus returns to your previous app) — expected, not a glitch.
-- **Output format** on list tools: `format` (`text` / `json` / `csv` / `none`), `export` (writes a file readable as an MCP resource via `exports://`), `full` (all metadata).
-- **URL playback** handles albums, playlists, and songs: `playback(action="play", url="https://music.apple.com/...")`.
-- **Storefronts:** catalog actions take an optional `storefront` (for example `storefront="it"`) to query other regions without changing your default.
-</details>
-
-## CLI
+uses an Apple Developer MusicKit key and is the preferred sanctioned API route.
 
 ```bash
-applemusic-mcp serve            # run the MCP server (your client calls this)
-applemusic-mcp login            # web sign-in (macOS: Safari; Windows/Linux: Chrome)
-applemusic-mcp login --chrome   # force the Chrome web player (macOS opt-in)
-applemusic-mcp login --dev      # Apple Developer token flow (.p8)
-applemusic-mcp logout           # sign out (switch accounts)
-applemusic-mcp status           # show auth status
-applemusic-mcp reset --force    # wipe credentials (keeps your .p8 key file)
-applemusic-mcp reset --all --force   # full uninstall: also removes the .p8, profile, and cache
+applemusic-mcp login
 ```
 
-## Good to know
+uses the signed-in Apple Music web session. On macOS it can harvest the session from Safari; on Windows/Linux it uses the Chrome path.
 
-- **macOS playback needs an unlocked screen and Accessibility permission.** Native catalog playback drives Music.app via System Events and moves the cursor to click Play. Grant it under System Settings → Privacy & Security → Accessibility, or set `mode="safari"` to play in the Safari web player instead (no Accessibility, no Chrome).
-- **Safari playback needs one real click to start.** The first time you play in a freshly-opened or reloaded Safari tab, the browser requires a genuine click before it will start audio (a standard autoplay rule — we don't fake it). Click ▶ once in the Apple Music tab, then play/pause/next all work hands-free. If a play command reports the queue is ready but the track sits at 0:00, that's this — give the tab one click.
-- **Brand-new playlists take a moment** to be addable over the API (cloud propagation). Existing ones are immediate.
-- **A few macOS-only features** have no Apple Music API equivalent: 1 to 5 star ratings, favorites, library snapshots, AirPlay, and nested folder paths.
-- **If catalog actions start failing**, re-run `applemusic-mcp login`. A handful of user playlists silently revert AppleScript edits ([known Music.app bug](https://www.macscripter.net/t/add-current-track-from-apple-music-to-playlist/72058)); the server detects and surfaces the rollback.
+On macOS, native Music.app operations can also cover a substantial local feature set without the cross-platform API path.
 
-## Appendix: developer token
-
-The preferred path. With an [Apple Developer Program](https://developer.apple.com/programs/) membership:
-
-1. **Get a MusicKit key.** [Apple Developer Portal → Keys](https://developer.apple.com/account/resources/authkeys/list) → **+** → name it, check **MusicKit**, Register → download the `.p8` (one time). Note your **Key ID** and **Team ID**.
-2. **Run the guided flow:**
-   ```bash
-   applemusic-mcp login --dev
-   ```
-   It prompts for the Team ID, Key ID, and `.p8` path (or pass `--team-id`, `--key-id`, `--key-path`), writes `~/.config/applemusic-mcp/config.json`, generates the developer token (180 days, auto-renews on use), and authorizes your user token.
+For the complete engine matrix, browser requirements, token behavior, rate limits, and Apple-specific caveats, use the **[upstream README](https://github.com/epheterson/applemusic-mcp#readme)**.
 
 ---
 
-## Star History
+## ChatGPT bridge setup
 
-[![Star History Chart](https://api.star-history.com/svg?repos=epheterson/applemusic-mcp&type=Date)](https://star-history.com/#epheterson/applemusic-mcp&Date)
+This is a feature added by this fork on top of the upstream local MCP.
+
+The ChatGPT bridge makes the same local Apple Music MCP server available to ChatGPT Chat through **OpenAI Secure MCP Tunnel**.
+
+The bridge runs on the computer that already hosts the Apple Music engines. It does not move Apple Music execution into the cloud: library operations, browser automation, Music.app control, and playback still happen on the host machine.
+
+### Architecture
+
+```text
+ChatGPT Chat plugin connection
+             |
+OpenAI Secure MCP Tunnel
+             | outbound HTTPS from the host
+Local tunnel-client
+             | stdio
+applemusic_mcp.bridge_server
+             |
+Existing Apple Music API / Chrome / Safari / Music.app engines
+```
+
+The official `tunnel-client` handles transport and tunnel authentication. The bridge starts one local MCP process and dispatches requests serially to it, so remote calls share the same player and engine state.
+
+Because the connection is initiated outbound from the host, the private tunnel does not require opening an inbound internet port on the local machine.
+
+The tunnel described here is intended for private personal/workspace use through ChatGPT developer mode. Public plugin deployment has different hosting and authentication requirements.
+
+### Requirements
+
+- A checkout of this fork with the bridge implementation
+- Python 3.10+
+- `uv` for the Windows source workflow
+- Apple Music configured on the host for whichever engines you intend to use
+- The official [OpenAI tunnel-client](https://github.com/openai/tunnel-client/releases/latest)
+- ChatGPT developer-mode access for the target account or workspace
+- An OpenAI tunnel associated with the ChatGPT workspace
+- A runtime API key with **Tunnels Read + Use** permissions
+- **Read + Manage** permissions when creating or modifying the tunnel
+
+Tunnel credentials authenticate the local bridge to OpenAI. Apple Music credentials remain local to the Apple Music engines and continue to authenticate those engines to Apple.
+
+### Windows bridge setup
+
+Run the following commands in PowerShell from the repository root.
+
+#### Step 1 — Install the project and tunnel client
+
+```powershell
+uv sync --extra dev
+```
+
+Then install the official Windows tunnel client:
+
+```powershell
+.\scripts\install-bridge.ps1
+```
+
+The installer downloads the current official release for the detected architecture, verifies it against the release SHA-256 checksum, and extracts it under `.bridge/tunnel-client`. Downloaded bridge binaries and archives are excluded from Git.
+
+#### Step 2 — Validate the local MCP side
+
+```powershell
+.\scripts\start-bridge.ps1 -Check
+```
+
+This performs a real local stdio handshake and checks that the original MCP tool definitions exposed through the bridge match the local server. It does **not** require an OpenAI key and does **not** establish a ChatGPT connection.
+
+#### Step 3 — Prepare an OpenAI tunnel
+
+Create or select a tunnel in [OpenAI Tunnel settings](https://platform.openai.com/settings/organization/tunnels), associate it with the ChatGPT workspace that will use it, and obtain a runtime API key with the required tunnel permissions.
+
+Use a runtime key for the bridge rather than an admin key.
+
+#### Step 4 — Start the bridge
+
+```powershell
+.\scripts\start-bridge.ps1
+```
+
+On first start, enter the Tunnel ID and runtime API key in the local terminal. Key entry is hidden. The launcher stores the selected tunnel configuration so subsequent starts can reuse it.
+
+Keep the terminal running while ChatGPT is using the bridge. The default local status page is:
+
+```text
+http://127.0.0.1:8787/ui
+```
+
+Press **Ctrl+C** to stop the bridge.
+
+### Connect the tunnel from ChatGPT
+
+Keep the bridge running during connection setup and tool discovery.
+
+1. In ChatGPT, open **Settings > Security and login** and enable **Developer mode**.
+2. Open **ChatGPT Plugins** and add a new plugin/connection.
+3. Give it a name such as **Apple Music Local Bridge**.
+4. Under **Connection**, select **Tunnel**.
+5. Select the tunnel or enter its Tunnel ID.
+6. Create the connection and review the discovered tools.
+7. Select the plugin in a new conversation and begin with a status check or playlist listing.
+
+The bridge exposes the seven original Apple Music tools plus the additional read-only `exports` tool.
+
+Read/write execution remains subject to ChatGPT tool permissions, confirmation settings, and account/workspace policy.
+
+Official references:
+
+- [Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
+- [Connect plugins to ChatGPT](https://developers.openai.com/plugins/deploy/connect-chatgpt)
+- [Developer mode](https://developers.openai.com/api/docs/guides/developer-mode)
+
+### Saved credentials and everyday use
+
+For ordinary use, start the bridge with:
+
+```powershell
+.\scripts\start-bridge.ps1
+```
+
+On Windows, credentials are split between the project profile and the operating-system credential store:
+
+| Value | Storage |
+|---|---|
+| Selected Tunnel ID | `~/.config/applemusic-mcp/bridge.json` |
+| Runtime API key | Windows Credential Manager, service `applemusic-mcp-bridge`, indexed by Tunnel ID |
+
+The profile stores the Tunnel ID only. The API key is loaded into the tunnel client's environment at startup. It is not written to a plaintext key file and is not passed as a command-line argument. If secure credential storage fails, the launcher reports an error instead of silently falling back to plaintext storage.
+
+To replace credentials or save them without starting the bridge:
+
+```powershell
+.\scripts\start-bridge.ps1 -Setup
+```
+
+Explicit CLI arguments and environment variables take precedence over saved values.
+
+### Bridge CLI and other platforms
+
+On macOS or Linux, install the official `tunnel-client` and make it available on `PATH`, or provide its path explicitly with `--client`.
+
+From an environment where this fork is installed:
+
+```bash
+applemusic-mcp bridge --check
+applemusic-mcp bridge --setup
+applemusic-mcp bridge --doctor
+applemusic-mcp bridge
+```
+
+Key options:
+
+| Option | Purpose |
+|---|---|
+| `--check` | Verify local MCP tool definitions and resource discovery, then exit |
+| `--setup` | Enter and save bridge credentials, then exit |
+| `--doctor` | Run official tunnel-client diagnostics |
+| `--interactive` | Prompt locally for missing credentials |
+| `--remember` | Save the selected Tunnel ID and runtime key |
+| `--tunnel-id ID` | Override the saved Tunnel ID |
+| `--client PATH` | Select the tunnel-client executable |
+| `--health-port PORT` | Set the loopback status port; default `8787`, `0` for automatic allocation |
+
+`--check`, `--setup`, and `--doctor` are mutually exclusive.
+
+Environment overrides:
+
+| Variable | Purpose |
+|---|---|
+| `CONTROL_PLANE_TUNNEL_ID` | Tunnel ID override |
+| `CONTROL_PLANE_API_KEY` | Runtime API key override |
+| `APPLEMUSIC_TUNNEL_CLIENT` | tunnel-client executable override |
+
+Where no system credential store is available, credentials can be supplied through environment variables and `--remember` omitted.
+
+The original local server entry points remain available; the bridge is an additional transport path rather than a replacement for stdio MCP.
+
+### Bridge tools and exports
+
+The bridge reuses `playlist`, `library`, `catalog`, `discover`, `playback`, `queue`, and `config`. Their action implementations and schemas remain aligned with the local MCP server. This includes playlist writes and reordering, playback, queue management, sign-in, and preferences.
+
+The original export resources remain available:
+
+```text
+exports://list
+exports://{filename}
+```
+
+The bridge also adds a read-only `exports` tool for clients that can invoke tools but do not directly consume MCP resources.
+
+List exports:
+
+```json
+{"action": "list"}
+```
+
+Read an export:
+
+```json
+{"action": "read", "filename": "tracks_YYYYMMDD_HHMMSS.csv"}
+```
+
+CSV/JSON files remain on the host. The tool returns their text content; a host-side file path does not automatically become a downloadable ChatGPT attachment.
+
+### Bridge operating limits
+
+- **Host availability:** the host computer must stay online and awake.
+- **Playback location:** audio is played by the host computer; the bridge does not stream Apple Music audio into ChatGPT.
+- **Desktop requirements:** browser/Music.app playback still requires the host desktop session and player to be usable.
+- **Platform capabilities:** the bridge does not create new engine capabilities. Windows does not gain macOS-only Music.app, AirPlay, or star-rating support.
+- **Player ownership:** avoid running multiple MCP instances that compete for the same Chrome profile. The bridge manages one local MCP process of its own.
+- **Apple Music sign-in:** interactive Apple Music authorization must be completed on the host; remote calls reuse the host's credentials and preferences.
+
+### Bridge troubleshooting
+
+| Symptom | Check |
+|---|---|
+| ChatGPT cannot find the tunnel | Workspace association and **Tunnels Read + Use** permissions |
+| Tool discovery/calls fail | Keep the bridge running; run `.\scripts\start-bridge.ps1 -Doctor`; inspect the local status page |
+| Credentials are requested again | OS account, config directory, and credential-store availability |
+| A replaced key is not used | Environment overrides, then run `-Setup` with the intended values |
+| Port `8787` is in use | Select another `--health-port` |
+| Library queries work but playback fails | Host desktop session, Apple Music sign-in, engine selection, Chrome profile ownership |
+| Tool definitions changed after an update | Restart the bridge, refresh the ChatGPT connection, and start a new conversation |
+
+### Bridge development and validation
+
+Focused bridge tests:
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/test_bridge.py tests/test_bridge_tunnel.py tests/test_cli_cov.py -q
+```
+
+The test suite covers credential reuse/overrides, child-process credential handling, local stdio initialization, tool-schema parity, export path boundaries, and — when the official client is installed — actual tunnel forwarding against an isolated loopback control plane.
+
+The current bridge validation baseline documented in this fork is MCP Python SDK **1.25.0** with official tunnel-client **0.0.14** on Windows. Re-run validation when those dependencies change.
+
+---
+
+## Added tool: Playlist track reordering
+
+This fork adds:
+
+```text
+playlist(action="reorder")
+```
+
+for changing the stored track order of an existing editable Apple Music playlist without recreating the playlist or deleting/re-adding its contents.
+
+### Move one entry
+
+```text
+playlist(
+  action="reorder",
+  playlist="Road Trip",
+  from_position=5,
+  to_position=2
+)
+```
+
+This moves the fifth entry to the second position.
+
+### Apply a complete order
+
+```text
+playlist(
+  action="reorder",
+  playlist="Road Trip",
+  order="3,1,2"
+)
+```
+
+A JSON-array string is also accepted for a complete permutation.
+
+### Reorder semantics and safeguards
+
+- Positions are **1-based** and refer to the playlist's current API order.
+- Display sorting and shuffle state do not change those stored positions.
+- A full permutation must contain every current position exactly once.
+- Repeated songs are preserved as separate occurrences.
+- Music videos and supported track resource types are preserved.
+- The playlist ID and playlist membership are preserved.
+- `dry_run=True` previews the target order without writing.
+- Writes are read back and verified by default.
+- `verify=False` submits without post-write verification.
+- The implementation reads the complete playlist before writing and rejects partial pagination data.
+- A second pre-write check detects edits that occurred during preparation and cancels the reorder.
+- This is not an atomic cross-device lock; another device can still edit concurrently after the final check.
+- Uncertain writes are **not automatically retried**, because a timeout may occur after Apple already applied the new order.
+- The audit log records the previous and requested order for later inspection.
+
+### Requirements
+
+Reordering uses the Apple Music web-player API path and therefore requires:
+
+- a signed-in web session;
+- a playlist the web API reports as editable;
+- either an exact, unambiguous playlist name or a library playlist ID such as `p.…`.
+
+It works independently of playback `mode` on supported operating systems because it is a playlist web-API operation rather than a playback-engine operation.
+
+---
+
+## Other fork-specific changes
+
+In addition to the two main features above, this fork currently contains several smaller development changes:
+
+- **Batch-track tool descriptions were clarified** so MCP clients can more reliably see that a single `track` parameter can accept multiple tracks, including arrays and comma/newline-separated input.
+- **Bilingual README documentation**, including integrated ChatGPT bridge setup instructions.
+- **Bridge installation and startup scripts** were added for the Windows workflow, together with focused bridge/tunnel tests.
+- **Personal-fork release automation was disabled/removed** so development in this repository does not accidentally run upstream-oriented publishing workflows.
+- Smaller compatibility, integration, workflow, and documentation refinements may be added as the fork evolves.
+
+These changes are maintained in this fork rather than presented as upstream behavior.
+
+---
+
+## Development direction
+
+This repository is intended to remain compatible with useful upstream improvements while developing independently in several areas:
+
+- ChatGPT and remote MCP connectivity
+- safer and richer playlist editing
+- better batch operations and assistant-facing tool ergonomics
+- reliability and validation around remote/local integration
+- documentation and setup workflows for personal deployments
+
+Upstream changes may be merged when appropriate, but there is no expectation that fork-specific features will be accepted, released, or supported by the upstream project.
 
 ---
 
 ## License
 
-MIT · *Unofficial community project — not affiliated with or endorsed by Apple. Uses your own Apple Music account for personal use; follow Apple's terms.*
+This project is distributed under the [MIT License](LICENSE).
 
-<!-- Identifier for the official MCP Registry (PyPI ownership check). -->
-mcp-name: io.github.epheterson/applemusic-mcp
+It is based on and contains code from [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp), Copyright © 2024 Eric Pheterson. Modifications and additional functionality in this fork are Copyright © 2026 alwinecor. Both are distributed under the MIT License.
+
+Apple Music is a trademark of Apple Inc. This is an unofficial community project and is not affiliated with or endorsed by Apple or OpenAI.
 
 ## Credits
 
-[FastMCP](https://github.com/jlowin/fastmcp) · [Apple MusicKit](https://developer.apple.com/documentation/applemusicapi) · [Model Context Protocol](https://modelcontextprotocol.io/)
+Upstream project: [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp)
 
----
-
-Built with ❤️ in California by [@epheterson](https://github.com/epheterson) and [Claude Code](https://claude.com/claude-code).
+This project is developed by [@alwinecor](https://github.com/alwinecor) with Codex / ChatGPT.

@@ -52,3 +52,6 @@ apple-music-credentials.md
 PLAN.md
 .claude/settings.local.json
 docs/plans/
+
+# Downloaded bridge runtime and local tunnel state
+.bridge/
