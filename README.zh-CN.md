@@ -456,9 +456,7 @@ Reorder 走 Apple Music 网页播放器 API 路径，因此需要：
 
 本项目以 [MIT License](LICENSE) 发布。
 
-本仓库基于并包含 [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp) 的代码，原项目 Copyright © 2024 Eric Pheterson，同样采用 MIT License。
-
-本 fork 中的修改和新增功能也以相同的 MIT License 发布。
+本仓库基于并包含 [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp) 的代码，原项目 Copyright © 2024 Eric Pheterson。本 fork 中的修改和新增功能 Copyright © 2026 alwinecor。双方代码均以 MIT License 发布。
 
 Apple Music 是 Apple Inc. 的商标。本项目为非官方社区项目，与 Apple 或 OpenAI 均无关联，也未获得其背书。
 
