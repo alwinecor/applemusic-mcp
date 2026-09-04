@@ -466,4 +466,4 @@ Apple Music 是 Apple Inc. 的商标。本项目为非官方社区项目，与 A
 
 上游项目：[epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp)
 
-本项目由 @alwinecor 与Codex / ChatGPT 共同实现。
+本项目由 [@alwinecor](https://github.com/alwinecor) 与Codex / ChatGPT 共同实现。
