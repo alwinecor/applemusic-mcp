@@ -2,11 +2,9 @@
 
 [English](README.md) | **简体中文**
 
-[![Release](https://img.shields.io/github/v/release/epheterson/applemusic-mcp.svg?label=release)](https://github.com/epheterson/applemusic-mcp/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-15%20%7C%2026-blue.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Downloads](https://static.pepy.tech/badge/applemusic-mcp)](https://pepy.tech/project/applemusic-mcp)
 [![MCP](https://img.shields.io/badge/MCP-server-purple.svg)](https://modelcontextprotocol.io/)
 
 Apple Music 的 MCP 服务器，让各类 [MCP 客户端](https://modelcontextprotocol.io/clients)（Claude、Cursor、Cline、Windsurf 等）管理歌单、资料库、音乐目录、发现推荐、播放和“待播清单”（Up Next）。支持 macOS、Windows 和 Linux。
@@ -246,23 +244,30 @@ applemusic-mcp reset --all --force   # 完全卸载状态：同时删除 .p8、�
 
 ---
 
-## Star 历史
+## 上游项目与本分支开发
 
-[![Star History Chart](https://api.star-history.com/svg?repos=epheterson/applemusic-mcp&type=Date)](https://star-history.com/#epheterson/applemusic-mcp&Date)
+本仓库是 [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp) 的独立 fork，原项目由 Eric Pheterson 创建。
 
----
+上游项目提供 Apple Music MCP 服务器的核心实现及本地 Apple Music 集成功能。本 fork 在此基础上继续开发。目前已经加入或完成的主要改动包括：
+
+- **ChatGPT bridge：** 通过 OpenAI Secure MCP Tunnel，让 ChatGPT Chat 可以远程连接运行在本地的 Apple Music MCP server；同时支持保存隧道凭据，并提供可供 ChatGPT 读取导出内容的机制。
+- **歌单曲目顺序调整：** 为 `playlist` 工具增加 `reorder` action，可在保留歌单本身及曲目成员的前提下调整顺序，并支持预览、写入后验证和并发修改检查。
+- **其他细节改进：** 随着开发继续进行，包含一些较小的集成、兼容性、工作流和文档层面的调整与完善。
+
+在条件合适时，本 fork 仍可能继续吸收上游项目的更新。本仓库特有的功能由本 fork 独立维护，不应视为上游项目的一部分，也不代表获得上游项目的官方支持。
+
+ChatGPT bridge 的架构和配置方式见 [docs/chatgpt-bridge.zh-CN.md](docs/chatgpt-bridge.zh-CN.md)。
 
 ## 许可证
 
-MIT · *非官方社区项目，与 Apple 无关联，也未获 Apple 背书。请使用你自己的 Apple Music 账户供个人使用，并遵守 Apple 的条款。*
+本项目以 [MIT License](LICENSE) 发布。
 
-<!-- 官方 MCP Registry 的标识符，用于 PyPI 所有权验证。 -->
-mcp-name: io.github.epheterson/applemusic-mcp
+本仓库基于并包含 [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp) 的代码，原项目 Copyright © 2024 Eric Pheterson，同样采用 MIT License。
+
+本 fork 中的修改和新增功能也以相同的 MIT License 发布。
+
+Apple Music 是 Apple Inc. 的商标。本项目为非官方社区项目，与 Apple 或 OpenAI 均无关联，也未获得其背书。
 
 ## 致谢
 
 [FastMCP](https://github.com/jlowin/fastmcp) · [Apple MusicKit](https://developer.apple.com/documentation/applemusicapi) · [Model Context Protocol](https://modelcontextprotocol.io/)
-
----
-
-由 [@epheterson](https://github.com/epheterson) 和 [Claude Code](https://claude.com/claude-code) 在加利福尼亚用 ❤️ 构建。
