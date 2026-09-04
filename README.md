@@ -456,7 +456,7 @@ Upstream changes may be merged when appropriate, but there is no expectation tha
 
 This project is distributed under the [MIT License](LICENSE).
 
-It is based on and contains code from [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp), Copyright © 2024 Eric Pheterson, also licensed under the MIT License.
+It is based on and contains code from [epheterson/applemusic-mcp](https://github.com/epheterson/applemusic-mcp), Copyright © 2024 Eric Pheterson. Modifications and additional functionality in this fork are Copyright © 2026 alwinecor. Both are distributed under the MIT License.
 
 Modifications and additional functionality in this fork are released under the same MIT License.
 
