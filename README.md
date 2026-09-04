@@ -1,5 +1,7 @@
 # applemusic-mcp
 
+**English** | [简体中文](README.zh-CN.md)
+
 [![Release](https://img.shields.io/github/v/release/epheterson/applemusic-mcp.svg?label=release)](https://github.com/epheterson/applemusic-mcp/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-15%20%7C%2026-blue.svg)]()

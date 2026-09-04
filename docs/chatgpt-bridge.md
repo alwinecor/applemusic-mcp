@@ -1,5 +1,7 @@
 # ChatGPT bridge
 
+**English** | [简体中文](chatgpt-bridge.zh-CN.md)
+
 Connect the local Apple Music MCP server to ChatGPT Chat using OpenAI Secure MCP
 Tunnel. The bridge runs on the computer that already hosts your Apple Music
 engines and makes its tools available through a ChatGPT plugin connection.
