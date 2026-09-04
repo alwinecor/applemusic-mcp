@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Optional ChatGPT bridge using OpenAI Secure MCP Tunnel, with the original seven tools and an additional read-only `exports` tool. Includes Windows installation and startup scripts, saved tunnel credentials in the system credential store, local diagnostics, and a dedicated [setup guide](docs/chatgpt-bridge.md).
+- Optional ChatGPT bridge using OpenAI Secure MCP Tunnel, with the original seven tools and an additional read-only `exports` tool. Includes Windows installation and startup scripts, saved tunnel credentials in the system credential store, local diagnostics, and integrated setup
+documentation in the README.
 - `playlist(action="reorder")` moves one entry by 1-based position or applies a full permutation. Uses the web player's full-order PUT, preserves playlist identity and track occurrences, supports preview and read-back verification, and refuses incomplete reads or detected concurrent edits. Requires a web session and a web-editable playlist on any OS.
 
 ## [0.20.1] - 2026-08-27
